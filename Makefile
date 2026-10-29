@@ -54,9 +54,34 @@ check: $(BIN) $(UNIT_BIN) $(SELF_BIN)
 sanitize:
 	@$(MAKE) --no-print-directory check B=build/san MODE_FLAGS="$(SANITIZE_FLAGS)"
 
+# Real T-Drive checks start in step 2 (TESTING.md §12.1).
+check-data:
+	@echo "check-data: no real-data checks yet"
+
+# Everything, in order, stopping at the first red part (TESTING.md §12.1).
+VALIDATE := $(sort $(wildcard tests/validate/step-*.sh))
+
+verify:
+	@$(MAKE) --no-print-directory check || { echo "VERIFY FAILED at: make check"; exit 1; }
+	@$(MAKE) --no-print-directory sanitize || { echo "VERIFY FAILED at: make sanitize"; exit 1; }
+	@$(MAKE) --no-print-directory check-data || { echo "VERIFY FAILED at: make check-data"; exit 1; }
+	@for script in $(VALIDATE); do \
+		echo "--- $$script"; \
+		bash "$$script" || { echo "VERIFY FAILED at: $$script"; exit 1; }; \
+	done
+	@echo "VERIFY PASSED"
+
+# Links .git/hooks/pre-commit to tools/pre-commit. Never replaces a hook that isn't ours.
+hooks:
+	@hook="$$(git rev-parse --git-path hooks)/pre-commit"; \
+	if { [ -e "$$hook" ] || [ -L "$$hook" ]; } && [ "$$(readlink "$$hook")" != "$(CURDIR)/tools/pre-commit" ]; then \
+		echo "make hooks: $$hook already exists and is not ours. Not replacing it."; exit 1; \
+	fi; \
+	ln -sf "$(CURDIR)/tools/pre-commit" "$$hook" && echo "make hooks: $$hook -> tools/pre-commit"
+
 clean:
 	rm -rf build
 
 -include $(patsubst %.c,$(B)/obj/%.d,$(SRC) $(UNIT_SRC) tests/selftest/always_fails.c)
 
-.PHONY: all check sanitize clean
+.PHONY: all check sanitize check-data verify hooks clean

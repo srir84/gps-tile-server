@@ -2,5 +2,6 @@
 data/
 build/
 dist/
+.review/
 .DS_Store
 __pycache__/

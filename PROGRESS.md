@@ -6,10 +6,10 @@ The handoff file. Read it first. Update it at the start and end of every step.
 
 | | |
 |---|---|
-| **Current step** | 0a: Project setup (build + tests) |
-| **Status** | waiting for review |
-| **Next action** | Developer reviews `docs/steps/step-0a.md`. On approval: first commit `step 0a: project setup`, status `approved` with the hash, then wait for "start step 0b". |
-| **Blocked on** | Developer review of step 0a |
+| **Current step** | 0b: Loop tools (verify, hooks, Codex review) |
+| **Status** | approved |
+| **Next action** | Wait for the developer to say "start step 1". Then build step 1 (map math) as DESIGN section 12.2 describes. |
+| **Blocked on** | Developer's go-ahead for step 1 |
 
 Status values: `not started` → `in progress` → `waiting for review` → `approved`
 
@@ -17,8 +17,8 @@ Status values: `not started` → `in progress` → `waiting for review` → `app
 
 | Step | Name | Status | Date | Commit | Review |
 |---|---|---|---|---|---|
-| 0a | Project setup: build + tests | waiting for review | 2026-10-28 | | `docs/steps/step-0a.md` |
-| 0b | Loop tools: verify, hooks, Codex review | not started | | | |
+| 0a | Project setup: build + tests | approved | 2026-10-28 | `0e0e3fb` | `docs/steps/step-0a.md` |
+| 0b | Loop tools: verify, hooks, Codex review | approved | 2026-10-28 | | `docs/steps/step-0b.md` |
 | 1 | Map math | not started | | | |
 | 2 | Importer | not started | | | |
 | 3a | Build: external sort + write `.gpt` | not started | | | |
@@ -46,6 +46,7 @@ Status values: `not started` → `in progress` → `waiting for review` → `app
 
 | Date | What | Command | Result |
 |---|---|---|---|
+| 2026-10-28 | Step 0b: `make verify` from clean | `make clean && make verify` | unit 1/0 · e2e 33/0 under check and sanitize · step-0a.sh 2 ok · step-0b.sh 7 ok · VERIFY PASSED · Codex round 2: high=0 medium=0 low=0 |
 | 2026-10-28 | Step 0a: `make check` + `make sanitize` from clean | `make clean && make check && make sanitize` | unit 1/0 · e2e 18/0 · both exit 0 · sanitizers present (`nm`) |
 | 2026-10-28 | T-Drive row counts (independent of our code) | `awk` over `data/raw/tdrive_txt/*.txt` | 10,088,351 rows · 23,357 at (0,0) · 103 out of range · 0 malformed |
 | 2026-10-28 | Design diagrams render | `bake_mermaid.py docs/DESIGN.md` | 9 mermaid baked, 0 failed · 8 images in `docs/images/`, all linked files exist |
@@ -59,5 +60,5 @@ Status values: `not started` → `in progress` → `waiting for review` → `app
 | License for the release | Step 9 | Others can't legally use a package with no license. E.g. MIT, Apache-2.0 or GPL-3.0 |
 
 ## Known issues
-- Git repo created in step 0a (branch `main`), no commit yet. The first commit comes with step 0a approval.
+- A fresh clone has no pre-commit hook until `make hooks` is run (installed in this checkout).
 - Leak checks are not available in `make sanitize` on macOS arm64 (no LeakSanitizer). Overflows and use-after-free are caught.

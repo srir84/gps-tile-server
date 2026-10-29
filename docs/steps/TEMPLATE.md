@@ -21,7 +21,7 @@ Copy this file to `docs/steps/step-N.md` and fill in every section. Keep it shor
 |---|---|---|
 | `src/...` | added / changed | |
 
-Review the full change, new files included: `git add -A --intent-to-add && git diff <base>` before commit (TESTING §12.3: `<base>` = last approved commit, or the empty tree for step 0a), or `git show <commit>` after.
+Review the full change, new files included: `.review/step-N/round-K.diff` (written by `tools/review.sh`, TESTING §12.3) before commit, or `git show <commit>` after.
 
 ## Tests
 

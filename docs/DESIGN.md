@@ -414,6 +414,7 @@ gps-tile-server/
 │   └── fixtures/            small sample files with known answers
 ├── build/                   compiled program, test output     NOT in git
 ├── dist/                    release packages                  NOT in git
+├── .review/                 Codex review rounds (step 0b)     NOT in git
 └── data/                    NOT in git
     ├── raw/tdrive/          downloaded zips (80 MB)
     ├── raw/tdrive_txt/      extracted text (447 MB, 8,911 files)
@@ -538,7 +539,7 @@ After every step: stop, show what was built and checked and how you can check it
 | Step | Builds | You validate by | Expected result |
 |---|---|---|---|
 | 0a | Layout, git (`data/`, `build/`, `dist/` ignored), Makefile (`all`, `check`, `sanitize`, `clean`), test runner (`tests/check.h`), sanitizers | `make check` · `make sanitize` · add a deliberately failing test | Builds, empty test passes under both · the failing test makes `make check` exit non-zero and prints its `catches:` line |
-| 0b | `make verify`, `make hooks` + `tools/pre-commit`, Stop hook (`.claude/settings.json` + `tools/stop-gate.sh`), `tools/review.sh` | Add a deliberately failing test, then try to end the turn and to commit · run `tools/review.sh 0b` | The Stop hook blocks, the commit is refused, `make verify` is red · after removing it all green · Codex returns a review in `build/review-0b.md` |
+| 0b | `make verify`, `make hooks` + `tools/pre-commit`, Stop hook (`.claude/settings.json` + `tools/stop-gate.sh`), `tools/review.sh` | Add a deliberately failing test, then try to end the turn and to commit · run `tools/review.sh 0b` | The Stop hook blocks, the commit is refused, `make verify` is red · after removing it all green · Codex returns a review in `.review/step-0b/round-1.md` |
 | 1 | `geo`: lon/lat → tile, Z-order code | `gpstiles where 116.391 39.907 --zoom 10`, then open that tile on openstreetmap.org | Prints `10/843/388` · tile shows central Beijing |
 | 2 | `import` | Run import on T-Drive | `rows=10088351 imported=10064891 skipped_zero=23357 skipped_out_of_range=103` |
 | 3a | `build`: external merge sort, header stats, write `.gpt` | Build T-Drive twice: default `--mem` and `--mem 1M` (~77 runs) · `cmp` the two · a Python script reads the header and compares the points with its own sort of the `.pts` · `/usr/bin/time -l` for peak memory | Both builds identical · header count 10,064,891 · points match Python · peak memory below `--mem` + 16 MiB · no temp files left |

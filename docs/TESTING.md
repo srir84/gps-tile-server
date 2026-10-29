@@ -121,7 +121,13 @@ tests/
 │   ├── run.py           runs every test_*.py, requires a catches: docstring        (step 0a)
 │   ├── test_cli.py      command-line exit codes and messages                       (step 0a)
 │   ├── test_check_runner.py  runs selftest/always_fails, checks the runner fails loudly (step 0a)
+│   ├── test_e2e_runner.py    runs run.py on fake test folders, checks it fails loudly    (step 0a)
+│   ├── test_stop_gate.py     tools/stop-gate.sh with a fake check                        (step 0b)
+│   ├── test_review_script.py tools/review.sh with a fake codex                           (step 0b)
 │   └── test_<feature>.py   real HTTP against a running server                       (step 5a+)
+├── validate/
+│   ├── lib.sh           shared helpers: scratch copy, the deliberately failing test    (step 0b)
+│   └── step-N.sh        each step's validation (§12.4): step-0a.sh, step-0b.sh, ...   (step 0b+)
 ├── data/
 │   └── check_tdrive.py  level 6: real-data checks                                     (step 2+)
 ├── oracle/
@@ -241,9 +247,9 @@ The "break on purpose" proof is not part of `make verify`. The agent does it by 
 |---|---|
 | Where | `.claude/settings.json` (in git) → `tools/stop-gate.sh` |
 | When | Every time a Claude agent tries to end its turn |
-| Does | If `src/` or `tests/` changed since the last commit, run `make check` |
-| Red | Block the stop and send the failing lines back to the agent |
-| Loop guard | After 3 blocks in a row, let the agent stop. It must write the problem under "Blocked on" in `PROGRESS.md`. Counter lives in `build/` (ignored, cleared by `make clean`) |
+| Does | If `src/`, `tests/` or the `Makefile` differ from the last commit (new files included), run `make -s check` |
+| Red | Block the stop (exit 2) and send the last 40 lines back to the agent |
+| Loop guard | After 3 blocks in a row, let the agent stop. It must write the problem under "Blocked on" in `PROGRESS.md`. Counter: `build/stop-gate.count` (ignored, cleared by `make clean`). A green check resets it |
 | Time | `make check` stays under 10 s, so every stop stays fast |
 | Codex as builder | Codex has no Stop hook. AGENTS.md rule instead: run `make check` before ending a turn |
 
@@ -251,19 +257,20 @@ The "break on purpose" proof is not part of `make verify`. The agent does it by 
 
 | Item | Value |
 |---|---|
-| Command | `tools/review.sh N` → `codex exec -s read-only -C <repo> -o build/review-N.md` |
-| Codex gets | The step's full change, new files included: `git add -A --intent-to-add`, then `git diff <base>`. `<base>` = the last approved commit, or the empty tree for step 0a (no commit yet). Plus its DESIGN §12.2 rows · TESTING §9 row · AGENTS.md rules. **Not** the builder's summary or opinion |
+| Command | `tools/review.sh N` → `codex exec -s read-only -C <repo> -o .review/step-N/round-K.md` |
+| Files | `.review/step-N/`: `round-K.diff` (input), `round-K.prompt.md`, `round-K.md` (findings), `round-K.log`. Git-ignored, and outside `build/` so `make clean` can't delete them |
+| Codex gets | The step's full change, new files included, built in a temporary index so the real one is untouched: `git add -A` then `git diff --cached <base>`. `<base>` = the last commit (the last approved step), or the empty tree before the first commit. The step file and `PROGRESS.md` are left out. Plus its DESIGN §12.2 rows · TESTING §9 row · AGENTS.md rules. **Not** the builder's summary or opinion |
 | Codex is asked for | Bugs, missing tests, security problems at inputs (files, HTTP), drift from DESIGN. Each finding: severity, `file:line`, how it fails |
 | Codex never | Edits files. The sandbox is read-only |
 | Builder then | Fixes each finding, or writes why not in the step file under "Review" |
-| Rounds | Max 2. Findings left after round 2 → listed for the developer to decide |
+| Rounds | Max 2, enforced: round 2 is told to check each round-1 finding, a 3rd run is refused. A failed Codex run, or a reply that doesn't end with `SUMMARY: high=N medium=N low=N`, doesn't use up a round. One review per step at a time (lock `.review/step-N.lock`). Findings left after round 2 → listed for the developer to decide |
 | In the step file | Review round count, findings, and what happened to each |
 
 ### 12.4 Validation scripts
 
 | Item | Value |
 |---|---|
-| Where | `tests/validate/step-N.sh`, one per step, written in that step |
+| Where | `tests/validate/step-N.sh`, one per step, written in that step. Shared helpers in `tests/validate/lib.sh` |
 | Does | Runs the step's DESIGN §12.2 "validate by" commands and compares with "expected" |
 | Visual steps (4, 6) | Headless Chrome (already installed, nothing to add) saves a screenshot to `build/validate/`. The script checks what it can (tile not empty, bright pixels at the airport). The agent looks at the screenshot too and says what it sees in the step file |
 | Kept forever | Later steps re-run all earlier scripts through `make verify`, so old behavior can't silently break |
@@ -275,7 +282,7 @@ The "break on purpose" proof is not part of `make verify`. The agent does it by 
 | Item | Value |
 |---|---|
 | Where | `tools/pre-commit` · `make hooks` installs it into `.git/hooks/` |
-| Runs | `make check` + `make sanitize` |
+| Runs | `make check` + `make sanitize` on exactly the staged files, exported to a temp folder (`git checkout-index`). Unstaged edits can't make a commit pass or fail |
 | Red | Commit refused |
 
 ### 12.6 Deploy: local service on this Mac

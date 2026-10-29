@@ -22,8 +22,8 @@ Use only these to build, test, review and deploy. Build and test commands exist 
 | `make sanitize` | Same tests under AddressSanitizer + UndefinedBehaviorSanitizer |
 | `make check-data` | Real T-Drive checks against `awk` / Python answers (minutes, needs `data/`) |
 | `make verify` (0b) | check + sanitize + check-data (if `data/` exists) + every step's `tests/validate/step-N.sh` |
-| `tools/review.sh N` (0b) | Codex reviews step N, read-only, fresh context → `build/review-N.md` |
-| `make hooks` (0b) | Install the pre-commit hook (check + sanitize) |
+| `tools/review.sh N` (0b) | Codex reviews step N, read-only, fresh context → `.review/step-N/round-K.md` (max 2 rounds) |
+| `make hooks` (0b) | Install the pre-commit hook (check + sanitize on the staged files) |
 | `make deploy-test` | Pre-approval check: temporary install in `build/`, test label, free port, removed afterwards (from step 5b) |
 | `make deploy` / `rollback` / `undeploy` / `status` | Local service on this Mac, with smoke test and automatic rollback. After approval only (from step 5b) |
 | `make release-test` | Pre-approval check: package + smoke test in `build/`, no tag (from step 9) |

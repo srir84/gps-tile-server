@@ -1,0 +1,26 @@
+#!/bin/bash
+# pre-commit: git hook, installed by `make hooks` (TESTING.md §12.5). Runs make check and make
+# sanitize on exactly the files being committed (exported to a temp folder), not the working tree.
+set -u
+tmp=$(mktemp -d "${TMPDIR:-/tmp}/gpstiles-precommit.XXXXXX") || exit 1
+trap 'rm -rf "$tmp"' EXIT
+
+# GIT_INDEX_FILE, set by git for this hook, makes this export exactly what is being committed.
+git checkout-index -a --prefix="$tmp/repo/" || exit 1
+
+# Clear git's hook variables, or tests that make their own temp repos would act on this one.
+for name in $(env | sed -n 's/^\(GIT_[A-Za-z0-9_]*\)=.*/\1/p'); do
+    unset "$name"
+done
+
+echo "pre-commit: make check + make sanitize on the staged files..."
+if (cd "$tmp/repo" && make --no-print-directory check && make --no-print-directory sanitize) > "$tmp/log" 2>&1; then
+    grep -E '^(unit|e2e|ALL PASSED)' "$tmp/log"
+    exit 0
+fi
+{
+    echo "pre-commit: commit refused. Tests fail on the staged files:"
+    tail -n 40 "$tmp/log"
+    echo "Fix the problem and commit again. Never use --no-verify (AGENTS.md)."
+} >&2
+exit 1
