@@ -1,0 +1,6 @@
+# Not in git: downloads, generated files, release packages (AGENTS.md "Data").
+data/
+build/
+dist/
+.DS_Store
+__pycache__/
