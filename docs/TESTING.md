@@ -111,7 +111,7 @@ FAIL tests/unit/test_geo.c:57 tile_beijing_z10
 
 ```text
 tests/
-├── check.h, check.c     tiny C test runner: CHECK(), CHECK_EQ_U64(), catches: label, seed (step 0a)
+├── check.h, check.c     tiny C test runner: CHECK(), CHECK_EQ_U64(), catches: label, seed (step 0a), check_rand() (step 1)
 ├── unit/
 │   ├── main.c, suites.h  runs every suite; each step adds its module's suite      (step 0a)
 │   └── test_<module>.c  one file per module: test_runner.c, test_geo.c, ...
@@ -124,6 +124,7 @@ tests/
 │   ├── test_e2e_runner.py    runs run.py on fake test folders, checks it fails loudly    (step 0a)
 │   ├── test_stop_gate.py     tools/stop-gate.sh with a fake check                        (step 0b)
 │   ├── test_review_script.py tools/review.sh with a fake codex                           (step 0b)
+│   ├── test_where.py         `gpstiles where` vs places.csv and the OSM formula, bad input (step 1)
 │   └── test_<feature>.py   real HTTP against a running server                       (step 5a+)
 ├── validate/
 │   ├── lib.sh           shared helpers: scratch copy, the deliberately failing test    (step 0b)

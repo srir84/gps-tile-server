@@ -9,5 +9,6 @@ int main(void)
         return status;
 
     check_suite(runner_cases, runner_cases_count);
+    check_suite(geo_cases, geo_cases_count);
     return check_report("unit");
 }

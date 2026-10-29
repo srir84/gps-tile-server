@@ -19,6 +19,10 @@ int check_init(void);
 /* Seed for random tests, from TEST_SEED. */
 uint64_t check_seed(void);
 
+/* Next random number (splitmix64). Restarts from the seed before each test, so a failing
+ * test repeats exactly with the same TEST_SEED, whatever ran before it. */
+uint64_t check_rand(void);
+
 /* Runs every case in order. A failure ends only that case; the rest still run. */
 void check_suite(const struct check_case *cases, size_t count);
 

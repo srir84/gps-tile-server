@@ -1,0 +1,18 @@
+# Known places and their tiles (TESTING.md §7). Read by tests/e2e/test_where.py.
+# Beijing z10 and New York z12: DESIGN §13. The rest: tests/oracle/osm_tile.py (the OpenStreetMap
+# formula), London and Sydney also checked by hand. Corners: lon 180 wraps to x = 0, the south edge
+# stays in the last row (DESIGN §9.4).
+name,lon,lat,zoom,tile
+beijing,116.391,39.907,10,10/843/388
+beijing,116.391,39.907,0,0/0/0
+beijing,116.391,39.907,24,24/13812821/6357158
+new_york,-74.006,40.7128,12,12/1205/1540
+london,-0.1276,51.5072,10,10/511/340
+sydney,151.2093,-33.8688,10,10/942/614
+null_island,0,0,1,1/1/1
+north_west_corner,-180,85.05112877980659,5,5/0/0
+south_west_corner,-180,-85.05112877980659,5,5/0/31
+north_east_corner,180,85.05112877980659,5,5/0/0
+south_east_corner,180,-85.05112877980659,5,5/0/31
+just_inside_north_east,179.9999,85.0511,5,5/31/0
+just_inside_south_east,179.9999,-85.0511,5,5/31/31

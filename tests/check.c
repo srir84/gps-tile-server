@@ -41,6 +41,16 @@ uint64_t check_seed(void)
     return seed;
 }
 
+static uint64_t rand_state;
+
+uint64_t check_rand(void)
+{
+    uint64_t z = (rand_state += 0x9E3779B97F4A7C15u);
+    z = (z ^ (z >> 30)) * 0xBF58476D1CE4E5B9u;
+    z = (z ^ (z >> 27)) * 0x94D049BB133111EBu;
+    return z ^ (z >> 31);
+}
+
 static void print_failure_header(const char *file, int line)
 {
     printf("FAIL %s:%d %s\n", file, line, current->name);
@@ -68,6 +78,7 @@ void check_suite(const struct check_case *cases, size_t count)
     for (size_t i = 0; i < count; i++) {
         current = &cases[i];
         current_failed = 0;
+        rand_state = seed;
         cases[i].fn();
         if (current_failed)
             failed++;
