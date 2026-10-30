@@ -55,9 +55,9 @@ check: $(BIN) $(UNIT_BIN) $(SELF_BIN)
 sanitize:
 	@$(MAKE) --no-print-directory check B=build/san MODE_FLAGS="$(SANITIZE_FLAGS)"
 
-# Real T-Drive checks start in step 2 (TESTING.md §12.1).
-check-data:
-	@echo "check-data: no real-data checks yet"
+# Real T-Drive checks against awk and Python (TESTING.md level 6). SKIPPED without data/.
+check-data: $(BIN)
+	@GPSTILES_BIN=$(BIN) $(PYTHON) -I -B tests/data/check_tdrive.py
 
 # Everything, in order, stopping at the first red part (TESTING.md §12.1).
 VALIDATE := $(sort $(wildcard tests/validate/step-*.sh))

@@ -10,5 +10,6 @@ int main(void)
 
     check_suite(runner_cases, runner_cases_count);
     check_suite(geo_cases, geo_cases_count);
+    check_suite(import_cases, import_cases_count);
     return check_report("unit");
 }

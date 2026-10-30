@@ -1,7 +1,7 @@
 # Not in git: downloads, generated files, release packages (AGENTS.md "Data").
-data/
-build/
-dist/
-.review/
+/data/
+/build/
+/dist/
+/.review/
 .DS_Store
 __pycache__/

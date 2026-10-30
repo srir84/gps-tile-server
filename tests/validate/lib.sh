@@ -24,8 +24,12 @@ scratch_copy() {
     SCRATCH=$(mktemp -d "${TMPDIR:-/tmp}/gpstiles-$NAME.XXXXXX") || exit 1
     trap 'rm -rf "$SCRATCH"' EXIT
     mkdir "$SCRATCH/repo" || exit 1
-    (cd "$ROOT" && tar -cf - --exclude ./build --exclude ./data --exclude ./dist \
-        --exclude ./.git --exclude ./.review .) | (cd "$SCRATCH/repo" && tar -xf -) || fail "copy failed"
+    # Top-level names only: BSD tar's --exclude ./data would also drop tests/data.
+    local item
+    for item in "$ROOT"/* "$ROOT"/.[!.]*; do
+        case ${item##*/} in build | data | dist | .git | .review | '.[!.]*') continue ;; esac
+        cp -R "$item" "$SCRATCH/repo/" || fail "copy failed"
+    done
     cd "$SCRATCH/repo" || exit 1
 }
 
