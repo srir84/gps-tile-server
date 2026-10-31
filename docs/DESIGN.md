@@ -301,6 +301,15 @@ flowchart TD
 | 103 rows with impossible coordinates (e.g. lon 193, lat 95) | Counted, skipped |
 | 21 empty files | Read, nothing imported |
 
+| Rule | Value |
+|---|---|
+| Columns | Counted from 1 (`--lon-col 3` is the third column) |
+| Blank line | Empty, or only `\r`. Not a row, not counted |
+| Long line | More than 65,536 bytes before the `\n` (a trailing `\r` counts) → malformed |
+| Numbers | Plain decimals only: no quotes, spaces, `nan`, `inf` or hex. `1e999` is a number, but out of range |
+| `--skip N` | Skips the first N lines of each file |
+| `--delim` | One character that can't be part of a number, or `tab` |
+
 ---
 
 ## 9. Interfaces
@@ -358,25 +367,27 @@ flowchart TD
 |---|---|
 | 0 … | `uint64` Z-order codes, little-endian, unsorted, no header |
 
-**`.gpt`** (output of `build`, header finalized in step 3a)
+**`.gpt`** (output of `build`, header finalized in step 3a; all numbers little-endian)
 
-| Field | Type | Meaning |
-|---|---|---|
-| magic | 8 bytes | `GPSTILE\0` |
-| version | uint32 | Format version |
-| header_size | uint32 | 256 |
-| count | uint64 | Number of points |
-| bounds | 4 × uint32 | Min/max world x and y of all points |
-| max_pixel_count | 25 × uint64 | Densest pixel at each zoom 0–24 (color scale) |
-| view box | 4 × uint32 | Middle 98% of points: where the map opens (ignores far-away junk) |
-| points | count × uint64 | Z-order codes, sorted ascending |
+| Offset | Field | Type | Meaning |
+|---|---|---|---|
+| 0 | magic | 8 bytes | `GPSTILE\0` |
+| 8 | version | uint32 | Format version: 1 |
+| 12 | header_size | uint32 | 256 |
+| 16 | count | uint64 | Number of points |
+| 24 | bounds | 4 × uint32 | Min x, min y, max x, max y (world units) of all points |
+| 40 | max_pixel_count | 25 × uint64 | Densest pixel at each zoom 0–24 (color scale). A pixel at zoom z is 1/256 of a tile side: the top 2(z + 8) bits of a code |
+| 240 | view box | 4 × uint32 | Where the map opens (ignores far-away junk): min x, min y, max x, max y after dropping `count / 100` points (rounded down) at each end of x and of y, widened to whole 65,536-unit buckets |
+| 256 | points | count × uint64 | Z-order codes, sorted ascending |
+
+With 0 points every stat is 0. A file whose size isn't 256 + 8 × count, whose label, version or header size differ, or whose stats no build could write (min > max, a densest pixel of 0 or above count, or growing with the zoom) is refused. Replace a `.gpt` that may be open only by renaming a new file over it, as `build` does: rewriting it in place can crash a program that has it mapped.
 
 ### 9.4 Point encoding
 
 | Value | Encoding |
 |---|---|
 | Valid input | `-180 ≤ lon ≤ 180` and `-85.05112877980659 ≤ lat ≤ 85.05112877980659` (both ends included). Anything else is out of range |
-| World x | `floor((lon + 180) / 360 × 2^32)`, then `mod 2^32`: lon 180 is the same line as −180, so it wraps to x = 0 (T-Drive has one such row) |
+| World x | `floor((lon + 180) / 360 × 2^32)`. lon 180 → x = 0, the same line as −180 (T-Drive has one such row). Any lon below 180 stays at most 2^32 − 1 (lon + 180 can round up to 360) |
 | World y | Web Mercator, `0` = north edge. Clamped to `2^32 − 1` so the south edge (lat −85.05112877980659) still fits in 32 bits |
 | Z-order code | x in even bits, y in odd bits → 64 bits |
 | Precision | ~1 cm (finer than GPS) |

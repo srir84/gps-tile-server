@@ -15,6 +15,7 @@
 #include "build.h"
 #include "geo.h"
 #include "import.h"
+#include "tilefile.h"
 
 /* Copies at most size-1 bytes of an untrusted argument, replacing control characters with '?',
  * so echoing it can't split the error over several lines or send terminal escape codes. */
@@ -38,7 +39,10 @@ static void print_usage(void)
           "  import --lon-col C --lat-col C [--delim D] [--skip N] -o OUT.pts FILE...\n"
           "                           read text rows into a .pts file and print what was kept and skipped\n"
           "  build [--mem SIZE] [--tmp DIR] -o OUT.gpt IN.pts...\n"
-          "                           sort the points into a .gpt tile file\n",
+          "                           sort the points into a .gpt tile file\n"
+          "  info FILE.gpt            print the point count, file size, bounds and start view\n"
+          "                           (west,south,east,north) and the densest pixel per zoom\n"
+          "  count FILE.gpt Z X Y     print the number of points in map tile Z/X/Y\n",
           stdout);
 }
 
@@ -587,22 +591,141 @@ done:
     return status;
 }
 
+/* Opens a .gpt for `command`. Returns 0, or 1 after printing why the file can't be used. */
+static int open_gpt(const char *command, const char *path, struct tilefile *tf)
+{
+    switch (tilefile_open(path, tf)) {
+    case TILEFILE_OK:
+        return 0;
+    case TILEFILE_OPEN_ERROR:
+        return file_error(command, path, strerror(errno));
+    case TILEFILE_NOT_REGULAR:
+        return file_error(command, path, "not a regular file");
+    case TILEFILE_NOT_GPT:
+        return file_error(command, path, "not a .gpt file (it doesn't start with the GPSTILE label)");
+    case TILEFILE_UNFINISHED:
+        return file_error(command, path, "an unfinished .gpt (its build was stopped before the end): build it again");
+    case TILEFILE_BAD_VERSION:
+        return file_error(command, path, "a .gpt version this gpstiles can't read (it reads version 1)");
+    case TILEFILE_BAD_HEADER:
+        return file_error(command, path, "broken .gpt: the header size isn't 256");
+    case TILEFILE_CUT_SHORT:
+        return file_error(command, path, "broken .gpt: cut short inside the 256-byte header");
+    case TILEFILE_SIZE_MISMATCH:
+        return file_error(command, path, "broken .gpt: the file size doesn't match the header's point count");
+    case TILEFILE_BAD_STATS:
+        return file_error(command, path, "broken .gpt: impossible header stats (bounds, view box or densest pixels)");
+    }
+    return file_error(command, path, "can't be read");
+}
+
+/* The argument to blame in a usage error: the first one that looks like an option (a mistyped one,
+ * wherever it was put), else the first extra one, argv[expected]. */
+static const char *first_option(int argc, char **argv, int expected)
+{
+    for (int i = 1; i < argc; i++) {
+        if (argv[i][0] == '-' && (i == 1 || (argv[i][1] != '\0' && (argv[i][1] < '0' || argv[i][1] > '9'))))
+            return argv[i];
+    }
+    return argv[expected < argc ? expected : argc - 1];
+}
+
+#define INFO_USAGE "usage: gpstiles info FILE.gpt"
+
+/* Prints NAME=west,south,east,north in degrees for a box in world units (y grows to the south). */
+static void print_box(const char *name, uint64_t count, uint32_t min_x, uint32_t min_y, uint32_t max_x,
+                      uint32_t max_y)
+{
+    if (count == 0)
+        printf("%s=none\n", name);
+    else
+        printf("%s=%.6f,%.6f,%.6f,%.6f\n", name, geo_lon(min_x), geo_lat(max_y), geo_lon(max_x), geo_lat(min_y));
+}
+
+/* gpstiles info FILE.gpt: prints the header (DESIGN §9.1, §9.3), one key=value per line. */
+static int cmd_info(int argc, char **argv)
+{
+    if (argc < 2) {
+        fputs("gpstiles info: missing arguments (" INFO_USAGE ")\n", stderr);
+        return 2;
+    }
+    if (argv[1][0] == '-' || argc > 2)
+        return bad_argument("info", "argument", first_option(argc, argv, 2), INFO_USAGE);
+    struct tilefile tf;
+    if (open_gpt("info", argv[1], &tf) != 0)
+        return 1;
+    const struct build_header *h = &tf.header;
+    printf("points=%" PRIu64 "\nbytes=%zu\n", h->count, tf.size);
+    print_box("bounds", h->count, h->min_x, h->min_y, h->max_x, h->max_y);
+    print_box("view", h->count, h->view_min_x, h->view_min_y, h->view_max_x, h->view_max_y);
+    fputs("max_pixel=", stdout);
+    for (unsigned z = 0; z <= GEO_MAX_ZOOM; z++)
+        printf("%" PRIu64 "%s", h->max_pixel_count[z], z < GEO_MAX_ZOOM ? "," : "\n");
+    tilefile_close(&tf);
+    return 0;
+}
+
+#define COUNT_USAGE "usage: gpstiles count FILE.gpt Z X Y"
+
+/* gpstiles count FILE.gpt Z X Y: prints the number of points in one tile (DESIGN §9.1). */
+static int cmd_count(int argc, char **argv)
+{
+    if (argc < 5) {
+        fputs("gpstiles count: missing arguments (" COUNT_USAGE ")\n", stderr);
+        return 2;
+    }
+    if (argv[1][0] == '-' || argc > 5) /* no options yet: a dash is a typo, not a file name */
+        return bad_argument("count", "argument", first_option(argc, argv, 5), COUNT_USAGE);
+    unsigned long zoom, x, y;
+    if (parse_whole(argv[2], GEO_MAX_ZOOM, &zoom) != 0)
+        return bad_argument("count", "zoom", argv[2], "want a whole number from 0 to 24");
+    char want[64];
+    snprintf(want, sizeof want, "want a whole number from 0 to %lu at zoom %lu", (1ul << zoom) - 1, zoom);
+    if (parse_whole(argv[3], (1ul << zoom) - 1, &x) != 0)
+        return bad_argument("count", "x", argv[3], want);
+    if (parse_whole(argv[4], (1ul << zoom) - 1, &y) != 0)
+        return bad_argument("count", "y", argv[4], want);
+    struct tilefile tf;
+    if (open_gpt("count", argv[1], &tf) != 0)
+        return 1;
+    uint64_t first, end;
+    tilefile_tile(&tf, (unsigned)zoom, (uint32_t)x, (uint32_t)y, &first, &end);
+    printf("points=%" PRIu64 "\n", end - first);
+    tilefile_close(&tf);
+    return 0;
+}
+
+/* The end of every command: if its printed result couldn't be written (stdout closed, disk full), the
+ * command fails instead of reporting success. Returns status, or 1. */
+static int finish_output(const char *command, int status)
+{
+    errno = 0;
+    if (fflush(stdout) != 0 || ferror(stdout)) {
+        fprintf(stderr, "gpstiles %s: can't write the result: %s\n", command, strerror(errno != 0 ? errno : EIO));
+        return status == 0 ? 1 : status;
+    }
+    return status;
+}
+
 int main(int argc, char **argv)
 {
     if (argc < 2) {
         fputs("gpstiles: missing command (try 'gpstiles help')\n", stderr);
         return 2;
     }
+    static const struct {
+        const char *name;
+        int (*run)(int argc, char **argv);
+    } commands[] = {{"where", cmd_where}, {"import", cmd_import}, {"build", cmd_build},
+                    {"info", cmd_info},   {"count", cmd_count}};
     if (strcmp(argv[1], "help") == 0 || strcmp(argv[1], "--help") == 0) {
         print_usage();
-        return 0;
+        return finish_output("help", 0);
     }
-    if (strcmp(argv[1], "where") == 0)
-        return cmd_where(argc - 1, argv + 1);
-    if (strcmp(argv[1], "import") == 0)
-        return cmd_import(argc - 1, argv + 1);
-    if (strcmp(argv[1], "build") == 0)
-        return cmd_build(argc - 1, argv + 1);
+    for (size_t i = 0; i < sizeof commands / sizeof commands[0]; i++) {
+        if (strcmp(argv[1], commands[i].name) == 0)
+            return finish_output(commands[i].name, commands[i].run(argc - 1, argv + 1));
+    }
     char name[65];
     printable_copy(name, sizeof name, argv[1]);
     fprintf(stderr, "gpstiles: unknown command '%s' (try 'gpstiles help')\n", name);

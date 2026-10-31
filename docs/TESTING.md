@@ -127,12 +127,13 @@ tests/
 │   ├── test_where.py         `gpstiles where` vs places.csv and the OSM formula, bad input (step 1)
 │   ├── test_import.py        `gpstiles import` vs the fixtures and oracle/import_rules.py, bad input (step 2)
 │   ├── test_build.py         `gpstiles build` vs oracle/gpt_rules.py, big and tiny --mem, file errors, killed builds (step 3a)
+│   ├── test_info_count.py    `gpstiles info` / `count` vs oracle/gpt_rules.py and slow counts, broken_*.gpt (step 3b)
 │   └── test_<feature>.py   real HTTP against a running server                       (step 5a+)
 ├── validate/
 │   ├── lib.sh           shared helpers: scratch copy, the deliberately failing test    (step 0b)
 │   └── step-N.sh        each step's validation (§12.4): step-0a.sh, step-0b.sh, ...   (step 0b+)
 ├── data/
-│   ├── check_tdrive.py  level 6: real-data checks (`make check-data`): import (step 2), build (step 3a)
+│   ├── check_tdrive.py  level 6: real-data checks (`make check-data`): import (step 2), build (step 3a), info + count (step 3b)
 │   └── tdrive_counts.awk  the row rules in awk: independent T-Drive counts            (step 2)
 ├── oracle/
 │   └── *.py             independent answers: slow counts, plain sorts, PNG decoding
@@ -162,7 +163,7 @@ tests/
 |---|---|---|---|
 | `places.csv` | Named places: Beijing, NYC, the 4 world corners | Their squares at several zooms | 1 |
 | `tdrive_small.txt` | 50 real-style rows incl. (0,0), out-of-range, CRLF, no final newline | Kept and skipped counts | 2 |
-| `bad_rows.txt` | Empty lines, letters for numbers, 1 MB line, missing columns | Empty lines skipped and not counted as rows (DESIGN §8). Every other line counted as malformed. No crash | 2 |
+| `bad_rows.txt` | Empty lines, letters for numbers, missing columns (the 1 MB line is made by the test, not stored) | Empty lines skipped and not counted as rows (DESIGN §8). Every other line counted as malformed. No crash | 2 |
 | Generated `.pts` | Random codes from a seed (made by the test, not stored) | Plain sort of the same codes | 3a |
 | `tiny.gpt` | A few hundred points built by the test | Slow counts per square | 3b |
 | `broken_*.gpt` | Wrong label, cut short, size mismatch | Refused with a clear message | 3b |

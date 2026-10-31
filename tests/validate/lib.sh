@@ -39,3 +39,19 @@ break_unit_test() {
     sed 's/CHECK(1 + 1 == 2);/CHECK(1 + 1 == 3);/' "$file" > "$file.new" && mv "$file.new" "$file"
     grep -q 'CHECK(1 + 1 == 3);' "$file" || fail "could not insert the failing test"
 }
+
+# Imports and builds T-Drive into build/validate/ with the current gpstiles, once: reused while newer
+# than build/gpstiles. Sets TDRIVE_PTS and TDRIVE_GPT. Needs data/raw/tdrive_txt (check before calling).
+tdrive_gpt() {
+    TDRIVE_PTS=$ROOT/build/validate/tdrive.pts
+    TDRIVE_GPT=$ROOT/build/validate/tdrive.gpt
+    if [ "$TDRIVE_GPT" -nt "$ROOT/build/gpstiles" ] && [ "$TDRIVE_PTS" -nt "$ROOT/build/gpstiles" ]; then
+        return 0
+    fi
+    mkdir -p "$ROOT/build/validate" || exit 1
+    rm -f "$TDRIVE_PTS" "$TDRIVE_GPT"
+    # Relative paths: 8,911 absolute ones could pass the argument size limit.
+    (cd "$ROOT" && build/gpstiles import --lon-col 3 --lat-col 4 -o "$TDRIVE_PTS" data/raw/tdrive_txt/*.txt > /dev/null) ||
+        fail "T-Drive import failed"
+    "$ROOT/build/gpstiles" build -o "$TDRIVE_GPT" "$TDRIVE_PTS" > /dev/null || fail "T-Drive build failed"
+}

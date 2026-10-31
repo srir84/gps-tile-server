@@ -12,5 +12,6 @@ int main(void)
     check_suite(geo_cases, geo_cases_count);
     check_suite(import_cases, import_cases_count);
     check_suite(build_cases, build_cases_count);
+    check_suite(tilefile_cases, tilefile_cases_count);
     return check_report("unit");
 }

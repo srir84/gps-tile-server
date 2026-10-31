@@ -5,6 +5,7 @@ tests/data/check_tdrive.py."""
 import array
 import collections
 import itertools
+import math
 import operator
 import struct
 import sys
@@ -38,6 +39,29 @@ def x_of(code):
 def y_of(code):
     """World y: the odd bits of the code."""
     return x_of(code >> 1)
+
+
+def code_of(x, y):
+    """The Z-order code of world x, y, bit by bit: x in the even bits, y in the odd bits."""
+    code = 0
+    for i in range(32):
+        code |= ((x >> i) & 1) << (2 * i) | ((y >> i) & 1) << (2 * i + 1)
+    return code
+
+
+def tile_of(code, zoom):
+    """The tile (x, y) holding a code at a zoom: the top `zoom` bits of x and of y."""
+    return x_of(code) >> (32 - zoom), y_of(code) >> (32 - zoom)
+
+
+def lon_of_x(x):
+    """Degrees at the west edge of world unit x."""
+    return x / 2**32 * 360.0 - 180.0
+
+
+def lat_of_y(y):
+    """Degrees at the north edge of world unit y (inverse Web Mercator)."""
+    return math.degrees(math.atan(math.sinh(math.pi * (1.0 - 2.0 * y / 2**32))))
 
 
 def header(codes):
