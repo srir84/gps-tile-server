@@ -41,6 +41,8 @@
   .tool { background: transparent; color: var(--accent); border: 1px solid var(--accent); border-radius: 6px;
     padding: 4px 10px; cursor: pointer; font: inherit; text-decoration: none; }
   .tool.on { background: var(--accent); color: var(--bg); }
+  #export { display: inline-block; margin-top: 6px; }
+  #export[hidden] { display: none; }
   .drawing, .drawing .leaflet-interactive { cursor: crosshair !important; }
   #error { display: none; top: 50%; left: 50%; transform: translate(-50%, -50%); padding: 16px 20px; }
   .heat-tile img { display: block; width: 256px; height: 256px; }

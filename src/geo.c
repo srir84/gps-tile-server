@@ -37,12 +37,12 @@ uint32_t geo_world_y(double lat)
     return (uint32_t)units;
 }
 
-double geo_lon(uint32_t x)
+double geo_lon(double x)
 {
     return x / WORLD * 360.0 - 180.0;
 }
 
-double geo_lat(uint32_t y)
+double geo_lat(double y)
 {
     return atan(sinh(PI * (1.0 - 2.0 * (y / WORLD)))) * (180.0 / PI);
 }

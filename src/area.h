@@ -8,9 +8,11 @@
 
 #include "tilefile.h"
 
-/* A box in world units, edges included: a point (x, y) is inside if x0 ≤ x ≤ x1 and y0 ≤ y ≤ y1. */
+/* A box in world units, edges included: a point (x, y) is inside if x0 ≤ x ≤ x1 and y0 ≤ y ≤ y1. The
+ * degrees it was given in (bbox), for an export to keep its rows inside them. */
 struct area_box {
     uint32_t x0, y0, x1, y1;
+    double west, south, east, north;
 };
 
 /* Turns bbox=w,s,e,n text into a box (DESIGN §9.2): four plain decimal numbers, each in the valid input

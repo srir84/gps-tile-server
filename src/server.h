@@ -16,6 +16,7 @@
 #define SERVER_MAX_CONNECTIONS 64
 #define SERVER_MAX_REQUEST 8192 /* request line + headers, bytes */
 #define SERVER_TIMEOUT_SECONDS 10 /* default for the whole request; --timeout changes it */
+#define SERVER_MAX_EXPORT 1000000 /* rows in one export */
 
 struct dataset {
     char id[SERVER_MAX_ID + 1];
@@ -32,6 +33,7 @@ enum route_kind {
     ROUTE_DATASET,  /* GET /api/datasets/{id} */
     ROUTE_TILE,     /* GET /tiles/{id}/{z}/{x}/{y}.png */
     ROUTE_COUNT,    /* GET /api/datasets/{id}/count?bbox=w,s,e,n */
+    ROUTE_EXPORT,   /* GET /api/datasets/{id}/export.csv?bbox=w,s,e,n[&limit=N] */
     ROUTE_NOT_FOUND,
     ROUTE_BAD_REQUEST,
     ROUTE_BAD_METHOD
@@ -44,13 +46,15 @@ struct route {
     uint32_t x, y;
     const char *message;         /* why, for the error kinds */
     const struct www_file *file; /* ROUTE_FILE */
-    struct area_box box;         /* ROUTE_COUNT */
+    struct area_box box;         /* ROUTE_COUNT, ROUTE_EXPORT */
+    uint64_t limit;              /* ROUTE_EXPORT: at most this many rows */
 };
 
 struct route server_route(const char *method, const char *target, const struct dataset *datasets, size_t count);
 
 /* Listens on host:port (port 0: any free port) and serves until killed. A client has `timeout` seconds
- * to send its whole request, and 6 × timeout to read the answer. Prints "gpstiles serve: http://HOST:PORT/"
+ * to send its whole request, and 6 × timeout to read the answer (an export: any time, but no pause of
+ * more than 3 × timeout). Prints "gpstiles serve: http://HOST:PORT/"
  * as the first line on stdout once listening. Returns 1 after printing why if it can't listen (it never
  * returns otherwise). */
 int server_run(const char *host, unsigned port, unsigned timeout, const struct dataset *datasets, size_t count);

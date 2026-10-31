@@ -113,15 +113,16 @@ static int known_parameters(const char *query, const char *const *allowed)
     return 1;
 }
 
-/* /api/datasets/{id}/count?bbox=w,s,e,n: the box (DESIGN §9.2). */
-static struct route count_route(const struct dataset *d, const char *query)
+/* /api/datasets/{id}/count and /export.csv: the box (DESIGN §9.2), and for an export the row limit. */
+static struct route box_route(enum route_kind kind, const struct dataset *d, const char *query)
 {
-    static const char *const names[] = {"bbox", NULL};
-    if (!known_parameters(query, names))
-        return error_route(ROUTE_BAD_REQUEST, "unknown parameter: count takes bbox");
+    static const char *const count_names[] = {"bbox", NULL}, *const export_names[] = {"bbox", "limit", NULL};
+    if (!known_parameters(query, kind == ROUTE_COUNT ? count_names : export_names))
+        return error_route(ROUTE_BAD_REQUEST, kind == ROUTE_COUNT ? "unknown parameter: count takes bbox"
+                                                                  : "unknown parameter: export takes bbox and limit");
     char text[128];
     const char *why = "bbox=west,south,east,north is required";
-    struct route r = {.kind = ROUTE_COUNT, .dataset = d};
+    struct route r = {.kind = kind, .dataset = d, .limit = SERVER_MAX_EXPORT};
     int found = query_value(query, "bbox", text, sizeof text);
     if (found < 0)
         return error_route(ROUTE_BAD_REQUEST, found == QUERY_TWICE      ? "bbox is given more than once"
@@ -129,6 +130,15 @@ static struct route count_route(const struct dataset *d, const char *query)
                                                                         : "bbox has a bad %-escape");
     if (found == 0 || area_parse_bbox(text, &r.box, &why) != 0)
         return error_route(ROUTE_BAD_REQUEST, why);
+    int has_limit = query_value(query, "limit", text, sizeof text);
+    uint32_t limit;
+    if (has_limit == QUERY_TWICE)
+        return error_route(ROUTE_BAD_REQUEST, "limit is given more than once");
+    if (has_limit != 0 && (has_limit < 0 || parse_number(text, text + strlen(text), &limit) != 0 || limit == 0 ||
+                           limit > SERVER_MAX_EXPORT))
+        return error_route(ROUTE_BAD_REQUEST, "limit must be a whole number from 1 to 1000000");
+    if (has_limit > 0)
+        r.limit = limit;
     return r;
 }
 
@@ -146,19 +156,20 @@ struct route server_route(const char *method, const char *target, const struct d
     if (length == sizeof api - 1 && memcmp(target, api, length) == 0)
         return (struct route){.kind = ROUTE_DATASETS};
     if (length > sizeof api && memcmp(target, api, sizeof api - 1) == 0 && target[sizeof api - 1] == '/') {
-        /* /api/datasets/{id}, then nothing or /count */
+        /* /api/datasets/{id}, then nothing, /count or /export.csv */
         const char *id = target + sizeof api, *slash = memchr(id, '/', (size_t)(end - id));
         const char *id_end = slash != NULL ? slash : end;
         size_t rest = (size_t)(end - id_end);
-        enum route_kind kind = rest == 0                                       ? ROUTE_DATASET
-                               : rest == 6 && memcmp(id_end, "/count", 6) == 0 ? ROUTE_COUNT
-                                                                               : ROUTE_NOT_FOUND;
+        enum route_kind kind = rest == 0                                              ? ROUTE_DATASET
+                               : rest == 6 && memcmp(id_end, "/count", 6) == 0        ? ROUTE_COUNT
+                               : rest == 11 && memcmp(id_end, "/export.csv", 11) == 0 ? ROUTE_EXPORT
+                                                                                      : ROUTE_NOT_FOUND;
         if (kind == ROUTE_NOT_FOUND)
             return error_route(ROUTE_NOT_FOUND, "not found");
         const struct dataset *d = find_dataset(id, (size_t)(id_end - id), datasets, count);
         if (d == NULL)
             return error_route(ROUTE_NOT_FOUND, "unknown dataset");
-        return kind == ROUTE_DATASET ? (struct route){.kind = ROUTE_DATASET, .dataset = d} : count_route(d, query);
+        return kind == ROUTE_DATASET ? (struct route){.kind = ROUTE_DATASET, .dataset = d} : box_route(kind, d, query);
     }
     if (length > sizeof tiles - 1 && memcmp(target, tiles, sizeof tiles - 1) == 0) {
         /* /tiles/{id}/{z}/{x}/{y}.png */
@@ -191,11 +202,16 @@ struct route server_route(const char *method, const char *target, const struct d
 
 /* ---- Responses ---- */
 
-/* One connection: its (non-blocking) socket, whether the answer has a body (not for HEAD), and the time its
- * whole answer must be sent by (a client that stops reading can't hold a connection slot for long). */
+/* One connection: its (non-blocking) socket, whether the answer has a body (not for HEAD), whether the client
+ * speaks HTTP/1.1 (chunked answers) or 1.0, and the time its answer must be sent by (a client that stops
+ * reading can't hold a connection slot for long). For a long answer (an export) `idle` is set: every write
+ * that goes through moves the deadline to `idle` seconds later, so a client that keeps reading is served to
+ * the end and one that stops for that long is let go. */
 struct client {
     int fd;
     int body;
+    int http11;
+    int idle;
     struct timespec write_deadline;
 };
 
@@ -242,6 +258,8 @@ static int send_all(struct client *c, const void *data, size_t size)
             return -1; /* the client went away */
         p += sent;
         size -= (size_t)sent;
+        if (c->idle > 0) /* the client is reading: another `idle` seconds */
+            c->write_deadline = seconds_from_now(c->idle);
     }
     return 0;
 }
@@ -341,6 +359,103 @@ static void respond_json(struct client *c, struct text *t)
     free(t->data);
 }
 
+/* An export's CSV, sent in chunks (HTTP/1.1 chunked encoding) as the points are found: a large export needs
+ * little memory, and a download cut short can be told from a whole one (no final empty chunk). */
+struct csv {
+    struct client *client;
+    const struct area_box *box;
+    int chunked; /* HTTP/1.1: chunks; HTTP/1.0: the rows as they are, and the closed connection ends the file */
+    int failed; /* the client went away or stopped reading: stop looking for points */
+    size_t used;
+    char data[65536];
+};
+
+static int flush_csv(struct csv *c)
+{
+    char size[24];
+    int n = snprintf(size, sizeof size, "%zx\r\n", c->used);
+    if (c->used > 0 && ((c->chunked && send_all(c->client, size, (size_t)n) != 0) ||
+                        send_all(c->client, c->data, c->used) != 0 || (c->chunked && send_all(c->client, "\r\n", 2) != 0)))
+        c->failed = 1;
+    c->used = 0;
+    return c->failed;
+}
+
+/* Writes degrees v, kept within [low, high], with 9 decimals, or as many more (up to 30) as it takes to
+ * stay within [low, high] and in world unit `unit` when read back as a point by `to_unit` (a longitude
+ * rounded up to 180 is -180). The clamped v itself qualifies, so enough decimals always do; never an
+ * exponent. Returns the length. */
+static int put_degrees(char *out, size_t size, double v, double low, double high, uint32_t unit,
+                       uint32_t (*to_unit)(double))
+{
+    v = v < low ? low : v > high ? high : v;
+    int n = 0;
+    for (int decimals = 9; decimals <= 30; decimals++) {
+        n = snprintf(out, size, "%.*f", decimals, v);
+        double back = strtod(out, NULL);
+        if (back >= low && back <= high && to_unit(back) == unit)
+            break;
+    }
+    return n;
+}
+
+/* One row: the middle of the point's world unit (read back, exactly that unit), kept inside the box's
+ * degrees. A box edge lies in the unit of the points on it, so a row moved onto the edge still reads back
+ * as its unit. Not at longitude ±180: there the middle is already inside, and 180 would read back as -180. */
+static int add_row(uint32_t x, uint32_t y, void *context)
+{
+    struct csv *c = context;
+    const struct area_box *b = c->box;
+    if (sizeof c->data - c->used < 96 && flush_csv(c) != 0)
+        return 1;
+    char *row = c->data + c->used;
+    size_t room = sizeof c->data - c->used;
+    double west = b->west == 180.0 ? -180.0 : b->west, east = b->east == 180.0 ? 180.0 : b->east;
+    int n = put_degrees(row, room, geo_lon(x + 0.5), west, east, x, geo_world_x);
+    row[n] = ',';
+    n += 1 + put_degrees(row + n + 1, room - (size_t)n - 1, geo_lat(y + 0.5), b->south, b->north, y, geo_world_y);
+    row[n] = '\n';
+    c->used += (size_t)n + 1;
+    return 0;
+}
+
+/* GET /api/datasets/{id}/export.csv: `lon,lat`, then one row per point in the box, in file order, at most
+ * r->limit rows. A row is the middle of the point's world unit with 9 decimals: read back (an import, a
+ * box) it is exactly that unit, and never outside the map. X-Total-Points says how
+ * many are in the box, X-Rows how many rows follow. HEAD: the headers only. Chunked for HTTP/1.1; for
+ * HTTP/1.0 (no chunks) the rows as they are, ended by closing the connection. */
+static void export_csv(struct client *client, const struct route *r, int timeout)
+{
+    struct csv *c = malloc(sizeof *c);
+    if (c == NULL) {
+        respond_error(client, 500, "out of memory");
+        return;
+    }
+    uint64_t total = area_count(&r->dataset->file, &r->box);
+    uint64_t rows = total < r->limit ? total : r->limit;
+    /* A client that keeps reading may take its time; one that stops for 3 × timeout seconds is let go. (On
+     * macOS a write goes through only after the client has read about one socket buffer, 0.5–0.7 MB, so
+     * with the default timeout a reader needs about 23 KB/s: one row-by-row script's pace.) */
+    client->idle = 3 * timeout;
+    client->write_deadline = seconds_from_now(client->idle);
+    char head[512];
+    int n = snprintf(head, sizeof head,
+                     "HTTP/1.1 200 OK\r\nContent-Type: text/csv; charset=utf-8\r\n"
+                     "Content-Disposition: attachment; filename=\"%s-export.csv\"\r\n"
+                     "X-Total-Points: %" PRIu64 "\r\nX-Rows: %" PRIu64 "\r\n%s"
+                     "X-Content-Type-Options: nosniff\r\nConnection: close\r\n\r\n",
+                     r->dataset->id, total, rows, client->http11 ? "Transfer-Encoding: chunked\r\n" : "");
+    *c = (struct csv){.client = client, .box = &r->box, .chunked = client->http11};
+    if (n > 0 && (size_t)n < sizeof head && send_all(client, head, (size_t)n) == 0 && client->body) {
+        memcpy(c->data, "lon,lat\n", 8);
+        c->used = 8;
+        area_points(&r->dataset->file, &r->box, rows, add_row, c);
+        if (flush_csv(c) == 0 && c->chunked)
+            send_all(client, "0\r\n\r\n", 5);
+    }
+    free(c);
+}
+
 /* ---- Connections ---- */
 
 struct server {
@@ -383,6 +498,7 @@ static int safe_host(const char *value, size_t length)
  * header lines "Name: value", no space before the colon, exactly one Host for HTTP/1.1. */
 struct request {
     char *method, *target;
+    int http11; /* HTTP/1.1, else 1.0 */
     const char *host; /* NULL if none (HTTP/1.0) */
     size_t host_length;
 };
@@ -396,7 +512,7 @@ static const char *parse_head(char *head, struct request *r)
     if (space == NULL || space2 == NULL || space2 > line_end || space == head || space[1] != '/' ||
         line_end - (space2 + 1) != 8 || (strncmp(space2 + 1, "HTTP/1.0", 8) != 0 && strncmp(space2 + 1, "HTTP/1.1", 8) != 0))
         return "bad request line";
-    int http11 = space2[8] == '1';
+    int http11 = r->http11 = space2[8] == '1';
     *space = '\0';
     *space2 = '\0';
     r->method = head;
@@ -431,6 +547,7 @@ static void handle(struct client *c, const struct server *s, char *head)
         respond_error(c, 400, bad);
         return;
     }
+    c->http11 = req.http11;
     if (req.host != NULL && !safe_host(req.host, req.host_length)) {
         respond_error(c, 403, "this server only answers requests for localhost or an IP address");
         return;
@@ -485,6 +602,9 @@ static void handle(struct client *c, const struct server *s, char *head)
         respond_json(c, &t);
         return;
     }
+    case ROUTE_EXPORT:
+        export_csv(c, &r, s->timeout);
+        return;
     case ROUTE_BAD_REQUEST:
         respond_error(c, 400, r.message);
         return;
@@ -500,7 +620,7 @@ static void handle(struct client *c, const struct server *s, char *head)
 static void *serve_connection(void *arg)
 {
     struct connection *conn = arg;
-    struct client c = {conn->fd, 1, seconds_from_now(6 * conn->server->timeout)};
+    struct client c = {.fd = conn->fd, .body = 1, .http11 = 1, .write_deadline = seconds_from_now(6 * conn->server->timeout)};
     char head[SERVER_MAX_REQUEST + 1];
     size_t used = 0;
     int complete = 0, timed_out = 0, has_nul = 0;

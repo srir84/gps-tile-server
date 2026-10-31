@@ -1,4 +1,5 @@
-// app.js: the map page (www/index.html): datasets, heat tiles, the side panel, hover counts and the box tool.
+// app.js: the map page (www/index.html): datasets, heat tiles, the side panel, hover counts, the box tool and
+// its CSV export.
 "use strict";
 // State: the datasets the server lists and the one shown.
 const state = { datasets: [], current: null };
@@ -217,6 +218,7 @@ function clearBox() {
   if (box) map.removeLayer(box);
   box = null;
   $("box-count").textContent = "";
+  $("export").hidden = true;
   $("box-text").textContent = "Drag on the map to count the points inside.";
 }
 $("box-tool").addEventListener("click", () => setDrawing(!drawing));
@@ -249,13 +251,31 @@ window.addEventListener("mouseup", (e) => {
 });
 let boxAsked = 0;
 function countBox(bounds) {
-  const boxes = boxesOf(bounds), ask = ++boxAsked;
+  const boxes = boxesOf(bounds), ask = ++boxAsked, id = state.current.id;
   $("box-text").textContent = boxes.length === 0 ? "The box is outside the map."
     : boxes.map((b) => `Box ${b.split(",").map((v) => Number(v).toFixed(4)).join(", ")}`).join(" + ");
   $("box-count").textContent = "…";
   countBoxes(boxes)
-    .then((n) => { if (ask === boxAsked) $("box-count").textContent = `${format(n)} point${n === 1 ? "" : "s"}`; })
+    .then((n) => {
+      if (ask !== boxAsked) return;
+      $("box-count").textContent = `${format(n)} point${n === 1 ? "" : "s"}`;
+      exportLink(id, boxes, n);
+    })
     .catch((status) => { if (ask === boxAsked) $("box-count").textContent = `error ${status}`; });
+}
+
+// Export (step 8): a link to the CSV of the box's points, at most 1,000,000 rows (the server's limit). A box
+// across the 180° line is two boxes and can't be one file: no link, and the note says why.
+const MAX_EXPORT = 1000000;
+function exportLink(id, boxes, n) {
+  const link = $("export"), rows = Math.min(n, MAX_EXPORT);
+  link.hidden = n === 0 || boxes.length !== 1;
+  if (boxes.length === 2) $("box-text").textContent += " · across the 180° line: draw one box on each side to export";
+  if (link.hidden) return;
+  link.href = `/api/datasets/${id}/export.csv?bbox=${boxes[0]}&limit=${rows}`;
+  link.textContent = n > rows ? `Export CSV (the first ${format(rows)} of ${format(n)} points, in file order)`
+    : `Export CSV (${format(n)} row${n === 1 ? "" : "s"})`;
+  link.title = n > rows ? "At most 1,000,000 rows, in the file's order: the box's north-west part comes first. Draw smaller boxes for the rest." : "";
 }
 
 // Shows a dataset at a view ({zoom, lat, lon}), or at its own view box (DESIGN §9.3). The map moves first,

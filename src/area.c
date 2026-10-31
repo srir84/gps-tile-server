@@ -41,6 +41,10 @@ int area_parse_bbox(const char *text, struct area_box *box, const char **why)
     box->x1 = east == 180.0 ? UINT32_MAX : geo_world_x(east);
     box->y0 = geo_world_y(north); /* y grows to the south */
     box->y1 = geo_world_y(south);
+    box->west = west;
+    box->south = south;
+    box->east = east;
+    box->north = north;
     return 0;
 }
 

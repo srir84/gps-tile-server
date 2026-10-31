@@ -6,9 +6,9 @@ The handoff file. Read it first. Update it at the start and end of every step.
 
 | | |
 |---|---|
-| **Current step** | 8: Export |
+| **Current step** | 9: Stage 1 report |
 | **Status** | in progress |
-| **Next action** | `make deploy` of the step-7 commit, then step 8 (CSV export and the page's Export link), verify, reviews, commit, deploy. |
+| **Next action** | `make deploy` of the step-8 commit, then step 9 (bench, README, `make release-test`, the stage 1 report), verify, reviews, commit, deploy, then `make release VERSION=0.1.0` (local only). |
 | **Blocked on** | nothing |
 
 Approval: on 2026-10-31 the developer set the goal "complete each step … do not stop until the full project is completed", with Codex (gpt-6-astra) and a Claude Opus skeptic reviewing every step. Each step is committed after both reviews and a green `make verify`. Deploy is local only (this Mac); nothing is published.
@@ -29,8 +29,8 @@ Status values: `not started` → `in progress` → `waiting for review` → `app
 | 5a | Web server | approved | 2026-10-31 | `4fba06c` | `docs/steps/step-5a.md` |
 | 5b | Local deploy (service, smoke test, rollback) | approved | 2026-10-31 | `e46af4d` | `docs/steps/step-5b.md` |
 | 6 | Map page | approved | 2026-10-31 | `e68e36f` | `docs/steps/step-6.md` |
-| 7 | Area count + API | approved | 2026-10-31 | | `docs/steps/step-7.md` |
-| 8 | Export | not started | | | |
+| 7 | Area count + API | approved | 2026-10-31 | `da206fe` | `docs/steps/step-7.md` |
+| 8 | Export | approved | 2026-10-31 | | `docs/steps/step-8.md` |
 | 9 | Stage 1 report + release | not started | | | |
 
 ## Done before step 0 (planning)
@@ -48,6 +48,8 @@ Status values: `not started` → `in progress` → `waiting for review` → `app
 
 | Date | What | Command | Result |
 |---|---|---|---|
+| 2026-10-31 | Step 8 after both review rounds (Codex, Claude skeptic): `make verify` | `make verify` | unit 33/0 · e2e 117/0 under check and sanitize · step-8 5 ok (real T-Drive: rows = Python's points, the page's Export, a steady slow reader) · VERIFY PASSED (11 min 7 s) |
+| 2026-10-31 | Deploy of step 7 (`da206fe`) | `make deploy`, `make status` | smoke test green on the first try (pid 84451) · the live count API: 239,864 for the airport box |
 | 2026-10-31 | Step 7 after both review rounds (Codex, Claude skeptic): `make verify` | `make verify` | unit 33/0 · e2e 103/0 under check and sanitize · step-7 4 ok (real T-Drive, the page's hover and box = Python) · step-5b 21 deploy scenarios · VERIFY PASSED (8 min 5 s) |
 | 2026-10-31 | Deploy of step 6 (`e68e36f`) | `make deploy` ×2, then traced | 2 tries: launchd error 5 on restart, rolled back to 5b automatically · 3rd: smoke test green with the map page, pid 80452 · footprint 3 MB |
 | 2026-10-31 | Step 6 after both review rounds (Codex, Claude skeptic): `make verify` | `make verify` | unit 31/0 · e2e 96/0 under check and sanitize · step-6 4 ok (headless Chrome, real T-Drive, real base map) · VERIFY PASSED (6 min 57 s) |
@@ -73,6 +75,7 @@ Status values: `not started` → `in progress` → `waiting for review` → `app
 | Store time per point? | Before stage 4 | Changes the `.gpt` format. DESIGN section 14 |
 | Base map provider for the page | Developer to confirm | Step 6 uses OpenStreetMap's standard tiles, darkened by CSS (CARTO's dark tiles need an account). A one-line change in `www/app.js` plus the CSP |
 | Box rule wording (DESIGN §9.2) | Developer to confirm | Longitude 180 as a box edge = the world's last unit; bbox at most 127 characters, each number at most 63. See `docs/steps/step-7.md` Decisions |
+| A total time limit on exports | Developer to confirm | None in step 8, on purpose: a client that keeps reading is served; one that pauses 3 × timeout is let go. See `docs/steps/step-8.md` Decisions |
 | Test time budgets (TESTING §2) | Developer to confirm | Proposed: `make check` under 30 s, `make sanitize` under 60 s (now about 17 s and 23 s; the e2e budget of 5 s was passed in step 5a) |
 | License for the release | Step 9 | Others can't legally use a package with no license. E.g. MIT, Apache-2.0 or GPL-3.0 |
 

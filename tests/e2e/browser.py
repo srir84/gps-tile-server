@@ -199,6 +199,20 @@ class Browser:
             self.mouse("mouseMoved", x0 + (x1 - x0) * i / steps, y0 + (y1 - y0) * i / steps, "left", 1, modifiers)
         self.mouse("mouseReleased", x1, y1, "left", 0, modifiers)
 
+    def save_downloads_in(self, folder):
+        """Files the page downloads (a click on a download link) go to this folder, under their own names."""
+        self.call("Browser.setDownloadBehavior", session=False, behavior="allow", downloadPath=str(folder))
+
+    def wait_for_download(self, path, timeout=60):
+        """Waits until the download has finished (Chrome writes it under another name, then renames it)."""
+        deadline = time.monotonic() + timeout
+        while not pathlib.Path(path).exists():
+            if time.monotonic() > deadline:
+                raise TimeoutError(f"no {path} after {timeout} s")
+            time.sleep(0.1)
+            self.js("0")  # keeps reading Chrome's messages
+        return pathlib.Path(path).read_bytes()
+
     def screenshot(self, path):
         data = self.call("Page.captureScreenshot", format="png", timeout=60)["data"]
         pathlib.Path(path).write_bytes(base64.b64decode(data))

@@ -19,10 +19,10 @@ int geo_valid_lat(double lat); /* -GEO_MAX_LAT ≤ lat ≤ GEO_MAX_LAT */
 uint32_t geo_world_x(double lon);
 uint32_t geo_world_y(double lat);
 
-/* Degrees at the north-west corner of world unit x or y: the inverse of the two above,
- * to within 1 world unit (≈ 0.93 cm at the equator). */
-double geo_lon(uint32_t x);
-double geo_lat(uint32_t y);
+/* Degrees at world position x or y: a whole unit is its north-west corner, x + 0.5 its middle. The
+ * inverse of the two above, to within 1 world unit (≈ 0.93 cm at the equator). */
+double geo_lon(double x);
+double geo_lat(double y);
 
 /* Z-order code: x in the even bits, y in the odd bits. geo_split undoes geo_code. */
 uint64_t geo_code(uint32_t x, uint32_t y);

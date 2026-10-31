@@ -138,7 +138,7 @@ static void box_count_and_points_equal_a_slow_check_of_every_point(void)
             CHECK_EQ_U64(2, got.n);
         }
     }
-    struct area_box world = {0, 0, UINT32_MAX, UINT32_MAX};
+    struct area_box world = {.x0 = 0, .y0 = 0, .x1 = UINT32_MAX, .y1 = UINT32_MAX};
     CHECK_EQ_U64(POINTS, area_count(&tf, &world));
 }
 
