@@ -115,7 +115,7 @@ def test_the_page_and_leaflet_are_served_with_matching_integrity_hashes():
 
 
 def test_chrome_shows_the_datasets_asks_for_exactly_the_tiles_on_the_map_and_switches():
-    """catches: a dataset switch that doesn't list the served files or doesn't change the map and the count, tile URLs with the wrong id, zoom, x or y, tiles asked for a view the map doesn't end up showing, a wrong tile count (one too many at a tile edge, or columns lost or doubled in a copy of the world), X-Points not added up, a stale count with the heat layer off, a wrong legend or pixel size, a layer box that does nothing, the base map drawn over the heat, or a script error, console error or blocked load (CSP) on the page"""
+    """catches: a dataset switch that doesn't list the served files or doesn't change the map and the count, tile URLs with the wrong id, zoom, x or y, tiles asked for a view the map doesn't end up showing, a wrong tile count (one too many at a tile edge, or columns lost or doubled in a copy of the world), a points-on-screen count that isn't the exact count of the view (step 7: the count API), a wrong legend or pixel size, a layer box that does nothing, the base map drawn over the heat, or a script error, console error or blocked load (CSP) on the page"""
     if not browser.available():
         return "SKIPPED: no Google Chrome"
     with tempfile.TemporaryDirectory() as tmp:
@@ -141,7 +141,7 @@ def test_chrome_shows_the_datasets_asks_for_exactly_the_tiles_on_the_map_and_swi
             assert sorted(requested) == sorted(f"first/{t}" for t in expected), requested  # each once, nothing else
             assert chrome.js("[...document.querySelectorAll('#switch button')].map((b) => b.dataset.id)") == ["first", "second-set"]
             assert (text("points"), text("file"), text("zoom"), text("tiles")) == ("200", "first.gpt", "10", "25")
-            chrome.wait("document.getElementById('in-view').textContent === '200'")  # X-Points of the 25 tiles, added up
+            chrome.wait("document.getElementById('in-view').textContent === '200'")  # the exact count of the view
             assert text("legend-max") == f"{max_pixel[10]:,}" and text("legend-mid") == "", (text("legend-max"), max_pixel[10])
             shown_lat = float(chrome.js("location.hash").split("/")[2])
             meters = 40075016.686 * math.cos(math.radians(shown_lat)) / 2 ** (10 + 8)  # the equator / pixels around it
@@ -160,7 +160,7 @@ def test_chrome_shows_the_datasets_asks_for_exactly_the_tiles_on_the_map_and_swi
             assert label == '"10/843/388"', label  # the border carries the tile's address
             chrome.click("#show-heat")
             chrome.wait("document.querySelectorAll('#map .heat-tile').length === 0")
-            assert text("in-view") == "–", text("in-view")  # nothing to add up while the heat layer is off
+            assert text("in-view") == "200", text("in-view")  # the exact count needs no heat tiles
             chrome.click("#show-heat")
             chrome.wait(LOADED)
             chrome.wait("document.getElementById('in-view').textContent === '200'")

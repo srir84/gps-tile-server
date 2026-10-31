@@ -128,6 +128,27 @@ server.serve_forever()
 PY
 build/gpstiles render "$work/tiny.gpt" 0 0 0 -o "$work/bin/old-release.png" > /dev/null || fail "can't draw a tile"
 sed -i '' "s|@TILE@|$work/bin/old-release.png|" "$work/bin/old-release"
+# Two launchctls whose first bootstrap says "Bootstrap failed: 5", as launchd's did in real deploys: one that
+# didn't load the job (flaky), one that loaded it anyway (loads-anyway).
+mkdir -p "$work/flaky" "$work/loads-anyway"
+printf '#!/bin/sh\nif [ "$1" = bootstrap ] && [ ! -e %q ]; then\n    touch %q\n    echo "Bootstrap failed: 5: Input/output error" >&2\n    exit 5\nfi\nexec /bin/launchctl "$@"\n' \
+    "$work/flaky/failed" "$work/flaky/failed" > "$work/flaky/launchctl"
+printf '#!/bin/sh\nif [ "$1" = bootstrap ] && [ ! -e %q ]; then\n    touch %q\n    /bin/launchctl "$@"\n    echo "Bootstrap failed: 5: Input/output error" >&2\n    exit 5\nfi\nexec /bin/launchctl "$@"\n' \
+    "$work/loads-anyway/failed" "$work/loads-anyway/failed" > "$work/loads-anyway/launchctl"
+chmod +x "$work/flaky/launchctl" "$work/loads-anyway/launchctl"
+# And one where the old job takes a moment to go: for 1.5 s after a bootout, print still finds it and a
+# bootstrap fails. It logs every bootstrap, to show the deploy waited instead of trying blindly.
+mkdir -p "$work/lingers"
+printf '%s\n' '#!/bin/sh' \
+    "out=$work/lingers/out calls=$work/lingers/calls" \
+    'recent() { [ -e "$out" ] && python3 -I -c "import os, sys, time; sys.exit(time.time() - os.path.getmtime(sys.argv[1]) > 1.5)" "$out"; }' \
+    'case $1 in' \
+    'bootout) /bin/launchctl "$@"; status=$?; touch "$out"; exit $status ;;' \
+    'print) recent && exit 0 ;;' \
+    'bootstrap) echo bootstrap >> "$calls"; if recent; then echo "Bootstrap failed: 5: Input/output error" >&2; exit 5; fi ;;' \
+    'esac' \
+    'exec /bin/launchctl "$@"' > "$work/lingers/launchctl"
+chmod +x "$work/lingers/launchctl"
 cat > "$work/bin/hangs-ignoring-term" <<'PY'
 #!/usr/bin/env python3
 # Listens and never answers, and ignores SIGTERM: the pre-flight must still stop it (SIGKILL).
@@ -265,6 +286,22 @@ tools/deploy.sh rollback > "$work/deploy.out" 2>&1 || fail "the rollback to the 
 tools/deploy.sh rollback > "$work/deploy.out" 2>&1 || fail "the rollback to test-good-3 failed: $(tail -2 "$work/deploy.out")"
 [ "$(current)" = releases/test-good-3 ] && grep -q "the map page" "$work/deploy.out" || fail "test-good-3 isn't back with its page"
 ok "a release from before the map page deploys, is rolled back to, and forward again"
+
+# 11d. A bootstrap that fails once (as launchd's did in 2 of 3 real deploys of step 6) is tried again.
+PATH="$work/flaky:$PATH" deploy test-good-4 build/gpstiles || fail "a bootstrap that failed once wasn't tried again: $(tail -3 "$work/deploy.out")"
+[ -e "$work/flaky/failed" ] && [ "$(current)" = releases/test-good-4 ] || fail "the bootstrap didn't fail once, or test-good-4 isn't current: $(current)"
+ok "a bootstrap that fails once is tried again: test-good-4 live"
+
+# 11e. A bootstrap that says it failed but loaded the job anyway counts as done (trying again would fail).
+PATH="$work/loads-anyway:$PATH" deploy test-good-5 build/gpstiles || fail "a job that loaded anyway wasn't taken: $(tail -3 "$work/deploy.out")"
+[ -e "$work/loads-anyway/failed" ] && [ "$(current)" = releases/test-good-5 ] || fail "the bootstrap didn't report an error, or test-good-5 isn't current: $(current)"
+ok "a bootstrap that reports an error but loads the job counts: test-good-5 live"
+
+# 11f. An old job that takes a moment to go is waited for: one bootstrap, after it has gone.
+PATH="$work/lingers:$PATH" deploy test-good-6 build/gpstiles || fail "the deploy with a lingering old job failed: $(tail -3 "$work/deploy.out")"
+[ "$(current)" = releases/test-good-6 ] && [ "$(wc -l < "$work/lingers/calls" | tr -d ' ')" = 1 ] ||
+    fail "not one bootstrap after the old job went: $(wc -l < "$work/lingers/calls" | tr -d ' ') bootstraps, current $(current)"
+ok "an old job that lingers 1.5 s is waited for: one bootstrap, test-good-6 live"
 
 # 12. launchd restarts a killed server (KeepAlive).
 old_pid=$(launchctl print "$DOMAIN/$GPSTILES_LABEL" | awk '/^\tpid = / {print $3}')

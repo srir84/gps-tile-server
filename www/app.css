@@ -38,6 +38,10 @@
   #help { position: absolute; z-index: 1000; left: 50%; transform: translateX(-50%); bottom: 8px;
     color: var(--muted); font-size: 11px; pointer-events: none; }
   .base-dark { filter: invert(1) hue-rotate(180deg) brightness(0.7) contrast(0.9) saturate(0.35); }
+  .tool { background: transparent; color: var(--accent); border: 1px solid var(--accent); border-radius: 6px;
+    padding: 4px 10px; cursor: pointer; font: inherit; text-decoration: none; }
+  .tool.on { background: var(--accent); color: var(--bg); }
+  .drawing, .drawing .leaflet-interactive { cursor: crosshair !important; }
   #error { display: none; top: 50%; left: 50%; transform: translate(-50%, -50%); padding: 16px 20px; }
   .heat-tile img { display: block; width: 256px; height: 256px; }
   .tile-border { outline: 1px solid rgba(79, 209, 181, 0.6); outline-offset: -1px; }

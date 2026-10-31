@@ -38,8 +38,14 @@
     <h2>IN VIEW</h2>
     <div class="row">Zoom <b id="zoom"></b></div>
     <div class="row">One pixel <b id="pixel"></b></div>
-    <div class="row">Points in tiles on screen <b id="in-view"></b></div>
+    <div class="row">Points on screen <b id="in-view"></b></div>
+    <div class="row">Pixel under the mouse <b id="hover">–</b></div>
     <div class="row">Tiles on screen <b id="tiles"></b></div>
+  </section>
+  <section>
+    <h2>BOX</h2>
+    <div class="row"><button id="box-tool" class="tool">Draw a box</button> <b id="box-count"></b></div>
+    <div class="row"><span id="box-text" class="note">Drag on the map to count the points inside.</span></div>
   </section>
   <section>
     <h2>TILE REQUESTS</h2>
@@ -47,7 +53,7 @@
   </section>
 </div>
 
-<div id="help">Drag to pan · scroll or double-click to zoom</div>
+<div id="help">Drag to pan · scroll or double-click to zoom · hover for point counts</div>
 <div id="error" class="panel"></div>
 
 <script src="/app.js"></script>

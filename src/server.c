@@ -60,12 +60,84 @@ static struct route error_route(enum route_kind kind, const char *message)
     return (struct route){.kind = kind, .message = message};
 }
 
+static int hex_digit(char c)
+{
+    return c >= '0' && c <= '9' ? c - '0' : c >= 'a' && c <= 'f' ? c - 'a' + 10 : c >= 'A' && c <= 'F' ? c - 'A' + 10 : -1;
+}
+
+/* The value of `name` in a query (a=1&b=2), %XX decoded into out[size]. Returns 1 if found, 0 if not, and
+ * QUERY_TWICE, QUERY_TOO_LONG or QUERY_BAD_ESCAPE (negative) if it is there twice, too long, or has a bad %. */
+enum { QUERY_TWICE = -1, QUERY_TOO_LONG = -2, QUERY_BAD_ESCAPE = -3 };
+static int query_value(const char *query, const char *name, char *out, size_t size)
+{
+    int found = 0;
+    size_t name_length = strlen(name);
+    for (const char *p = query; p != NULL && *p != '\0'; p = strchr(p, '&'), p = p != NULL ? p + 1 : NULL) {
+        size_t length = strcspn(p, "&");
+        if (length <= name_length || p[name_length] != '=' || memcmp(p, name, name_length) != 0)
+            continue;
+        if (found++)
+            return QUERY_TWICE;
+        size_t n = 0;
+        for (const char *v = p + name_length + 1; v < p + length; v++) {
+            int c = (unsigned char)*v;
+            if (c == '%') { /* scripts may send a comma as %2C */
+                int high = v + 2 < p + length ? hex_digit(v[1]) : -1, low = high >= 0 ? hex_digit(v[2]) : -1;
+                if (low < 0)
+                    return QUERY_BAD_ESCAPE;
+                c = high * 16 + low;
+                v += 2;
+            }
+            if (c == '\0')
+                return QUERY_BAD_ESCAPE;
+            if (n + 1 >= size)
+                return QUERY_TOO_LONG;
+            out[n++] = (char)c;
+        }
+        out[n] = '\0';
+    }
+    return found;
+}
+
+/* 1 if every parameter in the query is one of the `allowed` names (a NULL-terminated list). */
+static int known_parameters(const char *query, const char *const *allowed)
+{
+    for (const char *p = query; p != NULL && *p != '\0'; p = strchr(p, '&'), p = p != NULL ? p + 1 : NULL) {
+        size_t length = strcspn(p, "=&");
+        int known = 0;
+        for (const char *const *a = allowed; *a != NULL; a++)
+            known |= strlen(*a) == length && memcmp(*a, p, length) == 0;
+        if (!known)
+            return 0;
+    }
+    return 1;
+}
+
+/* /api/datasets/{id}/count?bbox=w,s,e,n: the box (DESIGN §9.2). */
+static struct route count_route(const struct dataset *d, const char *query)
+{
+    static const char *const names[] = {"bbox", NULL};
+    if (!known_parameters(query, names))
+        return error_route(ROUTE_BAD_REQUEST, "unknown parameter: count takes bbox");
+    char text[128];
+    const char *why = "bbox=west,south,east,north is required";
+    struct route r = {.kind = ROUTE_COUNT, .dataset = d};
+    int found = query_value(query, "bbox", text, sizeof text);
+    if (found < 0)
+        return error_route(ROUTE_BAD_REQUEST, found == QUERY_TWICE      ? "bbox is given more than once"
+                                              : found == QUERY_TOO_LONG ? "bbox is too long (127 characters at most)"
+                                                                        : "bbox has a bad %-escape");
+    if (found == 0 || area_parse_bbox(text, &r.box, &why) != 0)
+        return error_route(ROUTE_BAD_REQUEST, why);
+    return r;
+}
+
 struct route server_route(const char *method, const char *target, const struct dataset *datasets, size_t count)
 {
     if (strcmp(method, "GET") != 0 && strcmp(method, "HEAD") != 0)
         return error_route(ROUTE_BAD_METHOD, "only GET and HEAD are supported");
-    size_t length = strcspn(target, "?"); /* the path; no route uses the query yet */
-    const char *end = target + length;
+    size_t length = strcspn(target, "?");
+    const char *end = target + length, *query = target[length] == '?' ? target + length + 1 : "";
     static const char api[] = "/api/datasets", tiles[] = "/tiles/";
     for (size_t i = 0; i < www_file_count; i++) {
         if (strlen(www_files[i].path) == length && memcmp(www_files[i].path, target, length) == 0)
@@ -74,13 +146,19 @@ struct route server_route(const char *method, const char *target, const struct d
     if (length == sizeof api - 1 && memcmp(target, api, length) == 0)
         return (struct route){.kind = ROUTE_DATASETS};
     if (length > sizeof api && memcmp(target, api, sizeof api - 1) == 0 && target[sizeof api - 1] == '/') {
-        const char *id = target + sizeof api;
-        const struct dataset *d = memchr(id, '/', (size_t)(end - id)) == NULL
-                                      ? find_dataset(id, (size_t)(end - id), datasets, count)
-                                      : NULL;
+        /* /api/datasets/{id}, then nothing or /count */
+        const char *id = target + sizeof api, *slash = memchr(id, '/', (size_t)(end - id));
+        const char *id_end = slash != NULL ? slash : end;
+        size_t rest = (size_t)(end - id_end);
+        enum route_kind kind = rest == 0                                       ? ROUTE_DATASET
+                               : rest == 6 && memcmp(id_end, "/count", 6) == 0 ? ROUTE_COUNT
+                                                                               : ROUTE_NOT_FOUND;
+        if (kind == ROUTE_NOT_FOUND)
+            return error_route(ROUTE_NOT_FOUND, "not found");
+        const struct dataset *d = find_dataset(id, (size_t)(id_end - id), datasets, count);
         if (d == NULL)
-            return error_route(ROUTE_NOT_FOUND, memchr(id, '/', (size_t)(end - id)) == NULL ? "unknown dataset" : "not found");
-        return (struct route){.kind = ROUTE_DATASET, .dataset = d};
+            return error_route(ROUTE_NOT_FOUND, "unknown dataset");
+        return kind == ROUTE_DATASET ? (struct route){.kind = ROUTE_DATASET, .dataset = d} : count_route(d, query);
     }
     if (length > sizeof tiles - 1 && memcmp(target, tiles, sizeof tiles - 1) == 0) {
         /* /tiles/{id}/{z}/{x}/{y}.png */
@@ -399,6 +477,12 @@ static void handle(struct client *c, const struct server *s, char *head)
         snprintf(extra, sizeof extra, "X-Points: %" PRIu64 "\r\n", points);
         respond(c, 200, "OK", "image/png", extra, png, size);
         free(png);
+        return;
+    }
+    case ROUTE_COUNT: {
+        struct text t = {NULL, 0, 0, 0};
+        add(&t, "{\"id\":\"%s\",\"count\":%" PRIu64 "}\n", r.dataset->id, area_count(&r.dataset->file, &r.box));
+        respond_json(c, &t);
         return;
     }
     case ROUTE_BAD_REQUEST:

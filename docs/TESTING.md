@@ -132,6 +132,7 @@ tests/
 │   ├── test_server.py        `gpstiles serve` over real HTTP: endpoints, bad requests, 50 at once (step 5a)
 │   ├── test_page.py          the map page: Leaflet's pinned hashes, CSP, headless Chrome clicks (step 6)
 │   ├── browser.py            drives headless Chrome over its DevTools pipe: open, run JavaScript, mouse, screenshot (step 6)
+│   ├── test_area.py          box counts and hover boxes vs oracle/box_rules.py slow counts; hover and a drawn box in Chrome (step 7)
 │   └── test_<feature>.py   real HTTP against a running server                       (step 5a+)
 ├── validate/
 │   ├── lib.sh           shared helpers: scratch copy, the deliberately failing test    (step 0b)

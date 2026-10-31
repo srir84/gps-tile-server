@@ -14,5 +14,6 @@ int main(void)
     check_suite(build_cases, build_cases_count);
     check_suite(tilefile_cases, tilefile_cases_count);
     check_suite(render_cases, render_cases_count);
+    check_suite(area_cases, area_cases_count);
     return check_report("unit");
 }

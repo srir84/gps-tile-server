@@ -229,11 +229,28 @@ EOF
 }
 
 # (Re)loads the service from its launchd file, so a changed file always takes effect.
+# launchd sometimes refuses a bootstrap right after a bootout ("Bootstrap failed: 5: Input/output error" in 2
+# of 3 real deploys of step 6; the cause wasn't found, and quick bootout-bootstrap runs by hand never failed).
+# So: wait until the old job is gone, then try up to 5 times, a second apart; a job that loaded anyway counts.
 restart() {
     if loaded; then
         launchctl bootout "$DOMAIN/$LABEL" 2> /dev/null || return 1
     fi
-    launchctl bootstrap "$DOMAIN" "$PLIST"
+    for _ in $(seq 50); do
+        loaded || break
+        sleep 0.1
+    done
+    if loaded; then # still the old job: a job loaded below would look like the new one
+        say "launchd still has the old job 5 s after stopping it"
+        return 1
+    fi
+    for _ in 1 2 3 4 5; do
+        launchctl bootstrap "$DOMAIN" "$PLIST" 2> "$HOME_DIR/logs/launchctl.log" && return 0
+        loaded && return 0 # the old job was gone, so this is the new one
+        sleep 1
+    done
+    say "launchctl bootstrap failed 5 times: $(tr '\n' ' ' < "$HOME_DIR/logs/launchctl.log")"
+    return 1
 }
 
 # Stops the service. Returns 1 if it is still loaded afterwards.

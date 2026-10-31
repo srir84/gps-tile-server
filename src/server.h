@@ -7,6 +7,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "area.h"
 #include "tilefile.h"
 #include "www.h"
 
@@ -30,6 +31,7 @@ enum route_kind {
     ROUTE_DATASETS, /* GET /api/datasets */
     ROUTE_DATASET,  /* GET /api/datasets/{id} */
     ROUTE_TILE,     /* GET /tiles/{id}/{z}/{x}/{y}.png */
+    ROUTE_COUNT,    /* GET /api/datasets/{id}/count?bbox=w,s,e,n */
     ROUTE_NOT_FOUND,
     ROUTE_BAD_REQUEST,
     ROUTE_BAD_METHOD
@@ -42,6 +44,7 @@ struct route {
     uint32_t x, y;
     const char *message;         /* why, for the error kinds */
     const struct www_file *file; /* ROUTE_FILE */
+    struct area_box box;         /* ROUTE_COUNT */
 };
 
 struct route server_route(const char *method, const char *target, const struct dataset *datasets, size_t count);
