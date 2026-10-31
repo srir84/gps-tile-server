@@ -126,12 +126,13 @@ tests/
 │   ├── test_review_script.py tools/review.sh with a fake codex                           (step 0b)
 │   ├── test_where.py         `gpstiles where` vs places.csv and the OSM formula, bad input (step 1)
 │   ├── test_import.py        `gpstiles import` vs the fixtures and oracle/import_rules.py, bad input (step 2)
+│   ├── test_build.py         `gpstiles build` vs oracle/gpt_rules.py, big and tiny --mem, file errors, killed builds (step 3a)
 │   └── test_<feature>.py   real HTTP against a running server                       (step 5a+)
 ├── validate/
 │   ├── lib.sh           shared helpers: scratch copy, the deliberately failing test    (step 0b)
 │   └── step-N.sh        each step's validation (§12.4): step-0a.sh, step-0b.sh, ...   (step 0b+)
 ├── data/
-│   ├── check_tdrive.py  level 6: real-data checks (`make check-data`)                 (step 2+)
+│   ├── check_tdrive.py  level 6: real-data checks (`make check-data`): import (step 2), build (step 3a)
 │   └── tdrive_counts.awk  the row rules in awk: independent T-Drive counts            (step 2)
 ├── oracle/
 │   └── *.py             independent answers: slow counts, plain sorts, PNG decoding
