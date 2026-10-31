@@ -67,6 +67,10 @@ struct route server_route(const char *method, const char *target, const struct d
     size_t length = strcspn(target, "?"); /* the path; no route uses the query yet */
     const char *end = target + length;
     static const char api[] = "/api/datasets", tiles[] = "/tiles/";
+    for (size_t i = 0; i < www_file_count; i++) {
+        if (strlen(www_files[i].path) == length && memcmp(www_files[i].path, target, length) == 0)
+            return (struct route){.kind = ROUTE_FILE, .file = &www_files[i]};
+    }
     if (length == sizeof api - 1 && memcmp(target, api, length) == 0)
         return (struct route){.kind = ROUTE_DATASETS};
     if (length > sizeof api && memcmp(target, api, sizeof api - 1) == 0 && target[sizeof api - 1] == '/') {
@@ -167,7 +171,7 @@ static int send_all(struct client *c, const void *data, size_t size)
 static void respond(struct client *c, int status, const char *reason, const char *type, const char *extra,
                     const void *body, size_t size)
 {
-    char head[1024]; /* status line and headers: a few hundred bytes */
+    char head[1024]; /* the longest, the page with its Content-Security-Policy, is about 450 bytes */
     int n = snprintf(head, sizeof head,
                      "HTTP/1.1 %d %s\r\nContent-Type: %s\r\nContent-Length: %zu\r\n"
                      "X-Content-Type-Options: nosniff\r\nConnection: close\r\n%s\r\n",
@@ -355,6 +359,16 @@ static void handle(struct client *c, const struct server *s, char *head)
     }
     struct route r = server_route(req.method, req.target, s->datasets, s->count);
     switch (r.kind) {
+    case ROUTE_FILE:
+        /* The page may load only this server's files and OpenStreetMap's tiles (DESIGN §11.1). Images may
+         * also be blob: (the heat tiles, fetched) and data: (Leaflet cancels a tile's download by pointing it
+         * at a built-in data: image). */
+        respond(c, 200, "OK", r.file->type,
+                "Content-Security-Policy: default-src 'none'; script-src 'self'; style-src 'self'; "
+                "img-src 'self' data: blob: https://tile.openstreetmap.org; connect-src 'self'; base-uri 'none'; "
+                "form-action 'none'; frame-ancestors 'none'\r\n",
+                r.file->data, r.file->size);
+        return;
     case ROUTE_DATASETS: {
         struct text t = {NULL, 0, 0, 0};
         add(&t, "{\"datasets\":[");

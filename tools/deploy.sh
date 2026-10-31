@@ -111,8 +111,21 @@ check_datasets() {
 
 # Smoke test of the server at a URL (TESTING.md §12.6): every dataset listed, tile 0/0/0 of each a real PNG,
 # a bad URL → 404. Every request is bounded.
+# 0 if a release's program has the map page (step 6 on): the page, compiled in, names its script. A release
+# from before (step 5b) has none, and a rollback to it must still pass the smoke test.
+has_page() {
+    LC_ALL=C grep -q 'src="/app.js"' "$1" 2> /dev/null
+}
+
+# Smoke-tests the server at a URL running a release's program (the page is checked if the program has it).
 smoke_url() {
-    local url=$1 list path id size code tile=$HOME_DIR/logs/smoke-tile.png
+    local url=$1 program=$2 page list path id size code tile=$HOME_DIR/logs/smoke-tile.png
+    if has_page "$program"; then # the map page: HTML, with its Content-Security-Policy, naming its script
+        page=$("${CURL[@]}" -f -D - "$url/") || { say "smoke: the map page (/) didn't answer"; return 1; }
+        printf '%s' "$page" | grep -qi '^content-type: text/html' &&
+            printf '%s' "$page" | grep -qi "^content-security-policy: default-src 'none'" &&
+            printf '%s' "$page" | grep -q 'src="/app.js"' || { say "smoke: / is not the map page"; return 1; }
+    fi
     list=$("${CURL[@]}" -f "$url/api/datasets") || { say "smoke: /api/datasets didn't answer"; return 1; }
     while IFS= read -r path; do
         id=$(basename "$path" .gpt)
@@ -141,8 +154,9 @@ smoke_service() {
         fi
         sleep 0.2
     done
-    smoke_url "http://127.0.0.1:$PORT" || return 1
-    say "smoke test green: $(datasets | wc -l | tr -d ' ') dataset(s) listed and drawn, bad URL → 404, pid $pid (http://127.0.0.1:$PORT/)"
+    smoke_url "http://127.0.0.1:$PORT" "$HOME_DIR/current/gpstiles" || return 1
+    say "smoke test green: $(has_page "$HOME_DIR/current/gpstiles" && echo "the map page" || echo "no map page (a release from before step 6)"),"\
+        "$(datasets | wc -l | tr -d ' ') dataset(s) listed and drawn, bad URL → 404, pid $pid (http://127.0.0.1:$PORT/)"
 }
 
 # Stops a process: TERM, then KILL if it is still there after 5 s (a program may ignore TERM).
@@ -171,7 +185,7 @@ preflight() {
         kill -0 "$pid" 2> /dev/null || break
         sleep 0.2
     done
-    if [ -n "$port" ] && smoke_url "http://127.0.0.1:$port"; then
+    if [ -n "$port" ] && smoke_url "http://127.0.0.1:$port" "$binary"; then
         status=0
     fi
     stop_process "$pid"

@@ -1,5 +1,5 @@
-/* server.h: the read-only web server (DESIGN §7, §9.2): map tiles and dataset info for one or more
- * .gpt files over HTTP/1.1 (GET and HEAD). One thread per connection, at most SERVER_MAX_CONNECTIONS at
+/* server.h: the read-only web server (DESIGN §7, §9.2): the map page, map tiles and dataset info for one
+ * or more .gpt files over HTTP/1.1 (GET and HEAD). One thread per connection, at most SERVER_MAX_CONNECTIONS at
  * once, one request per connection, every request line, header and number checked before use. */
 #ifndef SERVER_H
 #define SERVER_H
@@ -8,6 +8,7 @@
 #include <stdint.h>
 
 #include "tilefile.h"
+#include "www.h"
 
 #define SERVER_MAX_DATASETS 32
 #define SERVER_MAX_ID 32
@@ -25,6 +26,7 @@ int server_valid_id(const char *id);
 
 /* What a request asks for, from its method and target (path + query). Pure: no sockets. */
 enum route_kind {
+    ROUTE_FILE,     /* GET / (the map page) or one of its files (www/) */
     ROUTE_DATASETS, /* GET /api/datasets */
     ROUTE_DATASET,  /* GET /api/datasets/{id} */
     ROUTE_TILE,     /* GET /tiles/{id}/{z}/{x}/{y}.png */
@@ -38,7 +40,8 @@ struct route {
     const struct dataset *dataset; /* ROUTE_DATASET, ROUTE_TILE */
     unsigned zoom;                 /* ROUTE_TILE */
     uint32_t x, y;
-    const char *message; /* why, for the error kinds */
+    const char *message;         /* why, for the error kinds */
+    const struct www_file *file; /* ROUTE_FILE */
 };
 
 struct route server_route(const char *method, const char *target, const struct dataset *datasets, size_t count);

@@ -64,7 +64,7 @@ cat > "$work/bin/bad-tiles" <<'PY'
 #!/usr/bin/env python3
 # Answers like gpstiles serve, wrong in one way, named by how it is called: bad-tiles (tiles are text),
 # corrupt-png (a PNG whose image data doesn't inflate), missing-id (lists no dataset), no-404 (a bad URL gets
-# 200). The smoke test must refuse each.
+# 200), no-page (nothing at /), wrong-page (an answer at /, but not the map page). The smoke test must refuse each.
 import http.server, json, os, sys
 mode, args = os.path.basename(sys.argv[0]), sys.argv[1:]
 port, ids = int(args[args.index("--port") + 1]), [os.path.basename(a)[:-4] for a in args if a.endswith(".gpt")]
@@ -72,7 +72,13 @@ tile = open(sys.argv[0] + ".png", "rb").read()  # a real tile, for the modes tha
 class Handler(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
         listed = [] if mode == "missing-id" else ids
-        if self.path == "/api/datasets":
+        headers = {}
+        if self.path == "/" and mode == "wrong-page":
+            body = b"hello"
+        elif self.path == "/" and mode != "no-page":  # the map page, as much of it as the smoke test reads
+            body = b'<script src="/app.js"></script>'
+            headers = {"Content-Type": "text/html; charset=utf-8", "Content-Security-Policy": "default-src 'none'"}
+        elif self.path == "/api/datasets":
             body = json.dumps({"datasets": [{"id": i} for i in listed]}, separators=(",", ":")).encode()
         elif self.path.startswith("/tiles/"):
             body = b"not a png" if mode == "bad-tiles" else tile
@@ -85,6 +91,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         else:
             body = b"ok" if mode == "no-404" else None
         self.send_response(200 if body else 404)
+        for name, value in headers.items():
+            self.send_header(name, value)
         self.end_headers()
         self.wfile.write(body or b"")
     def log_message(self, *args):
@@ -93,10 +101,33 @@ server = http.server.HTTPServer(("127.0.0.1", port), Handler)
 print(f"gpstiles serve: http://127.0.0.1:{server.server_port}/", flush=True)
 server.serve_forever()
 PY
-for mode in bad-tiles corrupt-png missing-id no-404; do
+for mode in bad-tiles corrupt-png missing-id no-404 no-page wrong-page; do
     [ "$mode" = bad-tiles ] || cp "$work/bin/bad-tiles" "$work/bin/$mode"
     build/gpstiles render "$work/tiny.gpt" 0 0 0 -o "$work/bin/$mode.png" > /dev/null || fail "can't draw a tile"
 done
+# A release from before the map page (step 5b): the dataset list, tiles, 404 for everything else, and no
+# page in the program. Its tile is read from a fixed path, as a deploy copies only the program.
+cat > "$work/bin/old-release" <<'PY'
+#!/usr/bin/env python3
+import http.server, json, os, sys
+args = sys.argv[1:]
+port, ids = int(args[args.index("--port") + 1]), [os.path.basename(a)[:-4] for a in args if a.endswith(".gpt")]
+tile = open("@TILE@", "rb").read()
+class Handler(http.server.BaseHTTPRequestHandler):
+    def do_GET(self):
+        body = (json.dumps({"datasets": [{"id": i} for i in ids]}, separators=(",", ":")).encode() if self.path == "/api/datasets"
+                else tile if self.path.startswith("/tiles/") else None)
+        self.send_response(200 if body else 404)
+        self.end_headers()
+        self.wfile.write(body or b"")
+    def log_message(self, *args):
+        pass
+server = http.server.HTTPServer(("127.0.0.1", port), Handler)
+print(f"gpstiles serve: http://127.0.0.1:{server.server_port}/", flush=True)
+server.serve_forever()
+PY
+build/gpstiles render "$work/tiny.gpt" 0 0 0 -o "$work/bin/old-release.png" > /dev/null || fail "can't draw a tile"
+sed -i '' "s|@TILE@|$work/bin/old-release.png|" "$work/bin/old-release"
 cat > "$work/bin/hangs-ignoring-term" <<'PY'
 #!/usr/bin/env python3
 # Listens and never answers, and ignores SIGTERM: the pre-flight must still stop it (SIGKILL).
@@ -146,10 +177,11 @@ deploy test-service-fails "$work/bin/fails-as-service" && fail "a release failin
 tools/deploy.sh smoke > /dev/null || fail "the rolled-back service doesn't answer"
 ok "a release failing as the service is rolled back to test-good-1, which answers"
 
-# 5–7. Programs that exit at once, serve bad tiles, list no dataset, answer 200 for a bad URL, hang, or
+# 5–7. Programs that exit at once, serve bad tiles, list no dataset, answer 200 for a bad URL, have no map page or
+# a wrong one, hang, or
 # hang and ignore SIGTERM are refused before the service is touched, and none is left running.
 start=$(date +%s)
-for bad in exits bad-tiles corrupt-png missing-id no-404 hangs hangs-ignoring-term; do
+for bad in exits bad-tiles corrupt-png missing-id no-404 no-page wrong-page hangs hangs-ignoring-term; do
     deploy "test-$bad" "$work/bin/$bad" && fail "the $bad program was accepted"
     grep -q "pre-flight" "$work/deploy.out" || fail "the $bad program wasn't caught by the pre-flight: $(tail -2 "$work/deploy.out")"
     [ "$(current)" = releases/test-good-1 ] || fail "the $bad program changed current"
@@ -158,7 +190,7 @@ seconds=$(($(date +%s) - start))
 [ $seconds -lt 90 ] || fail "refusing them took $seconds s"
 pgrep -f "$work/bin/" > /dev/null && fail "a refused program is still running: $(pgrep -fl "$work/bin/")"
 tools/deploy.sh smoke > /dev/null || fail "the service doesn't answer after the refused releases"
-ok "7 bad programs refused in the pre-flight ($seconds s), none left running, the service untouched"
+ok "9 bad programs refused in the pre-flight ($seconds s), none left running, the service untouched"
 
 # 7b. A deploy interrupted (SIGTERM) after the switch puts the old release back and unlocks.
 GPSTILES_RELEASE=test-interrupted GPSTILES_BINARY=$work/bin/fails-as-service tools/deploy.sh deploy > "$work/deploy.out" 2>&1 &
@@ -222,6 +254,17 @@ tools/deploy.sh rollback > "$work/deploy.out" 2>&1 && fail "a rollback to a brok
 cp "$work/good-2.saved" "$GPSTILES_HOME/releases/test-good-2/gpstiles"
 tools/deploy.sh smoke > /dev/null || fail "the service doesn't answer after the failed rollback"
 ok "a rollback to a broken release swaps back to test-good-1, which answers"
+
+# 11c. A release from before the map page (step 5b) deploys, and a rollback to it works: the smoke test
+# looks for the page only in a program that has it.
+deploy test-old-release "$work/bin/old-release" || fail "a release without the page was refused: $(tail -2 "$work/deploy.out")"
+grep -q "no map page (a release from before step 6)" "$work/deploy.out" || fail "no word of the missing page: $(tail -1 "$work/deploy.out")"
+deploy test-good-3 build/gpstiles || fail "test-good-3 didn't deploy: $(tail -3 "$work/deploy.out")"
+tools/deploy.sh rollback > "$work/deploy.out" 2>&1 || fail "the rollback to the release without the page failed: $(tail -2 "$work/deploy.out")"
+[ "$(current)" = releases/test-old-release ] || fail "rolled back to $(current), not test-old-release"
+tools/deploy.sh rollback > "$work/deploy.out" 2>&1 || fail "the rollback to test-good-3 failed: $(tail -2 "$work/deploy.out")"
+[ "$(current)" = releases/test-good-3 ] && grep -q "the map page" "$work/deploy.out" || fail "test-good-3 isn't back with its page"
+ok "a release from before the map page deploys, is rolled back to, and forward again"
 
 # 12. launchd restarts a killed server (KeepAlive).
 old_pid=$(launchctl print "$DOMAIN/$GPSTILES_LABEL" | awk '/^\tpid = / {print $3}')

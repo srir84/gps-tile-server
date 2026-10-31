@@ -6,9 +6,9 @@ The handoff file. Read it first. Update it at the start and end of every step.
 
 | | |
 |---|---|
-| **Current step** | 6: Map page |
+| **Current step** | 7: Area count + API |
 | **Status** | in progress |
-| **Next action** | `make deploy` of the step-5b commit (datasets.conf: T-Drive and tdrive-sample), then apply step 6, verify, reviews, commit, deploy. |
+| **Next action** | `make deploy` of the step-6 commit, then step 7 (count API, hover count, box tool), verify, reviews, commit, deploy. |
 | **Blocked on** | nothing |
 
 Approval: on 2026-10-31 the developer set the goal "complete each step … do not stop until the full project is completed", with Codex (gpt-6-astra) and a Claude Opus skeptic reviewing every step. Each step is committed after both reviews and a green `make verify`. Deploy is local only (this Mac); nothing is published.
@@ -27,8 +27,8 @@ Status values: `not started` → `in progress` → `waiting for review` → `app
 | 3b | Read `.gpt`: tilefile, info, count | approved | 2026-10-31 | `98e0f88` | `docs/steps/step-3b.md` |
 | 4 | Tile drawing | approved | 2026-10-31 | `1114779` | `docs/steps/step-4.md` |
 | 5a | Web server | approved | 2026-10-31 | `4fba06c` | `docs/steps/step-5a.md` |
-| 5b | Local deploy (service, smoke test, rollback) | approved | 2026-10-31 | | `docs/steps/step-5b.md` |
-| 6 | Map page | not started | | | |
+| 5b | Local deploy (service, smoke test, rollback) | approved | 2026-10-31 | `e46af4d` | `docs/steps/step-5b.md` |
+| 6 | Map page | approved | 2026-10-31 | | `docs/steps/step-6.md` |
 | 7 | Area count + API | not started | | | |
 | 8 | Export | not started | | | |
 | 9 | Stage 1 report + release | not started | | | |
@@ -48,6 +48,8 @@ Status values: `not started` → `in progress` → `waiting for review` → `app
 
 | Date | What | Command | Result |
 |---|---|---|---|
+| 2026-10-31 | Step 6 after both review rounds (Codex, Claude skeptic): `make verify` | `make verify` | unit 31/0 · e2e 96/0 under check and sanitize · step-6 4 ok (headless Chrome, real T-Drive, real base map) · VERIFY PASSED (6 min 57 s) |
+| 2026-10-31 | Deploy of step 5b (`e46af4d`) | `make deploy`, `make status` | smoke test green (2 datasets, pid 55018 on 127.0.0.1:8080) · footprint 3 MB |
 | 2026-10-31 | Step 5b after both review rounds (Codex, Claude skeptic): `make verify` | `make verify` | unit 31/0 · e2e 91/0 under check and sanitize · step-5b 17 ok (`make deploy-test`: 16 scenarios, nothing left) · VERIFY PASSED (6 min 4 s) |
 | 2026-10-31 | Step 5a after both review rounds (Codex, Claude skeptic): `make verify` | `make verify` | unit 31/0 · e2e 91/0 under check and sanitize · check-data as step 4 · step-5a 11 ok (each dataset's tile = Python's from its own points) · VERIFY PASSED (4 min 15 s) |
 | 2026-10-31 | Step 4 after both review rounds (Codex, Claude skeptic): `make verify` | `make verify` | unit 31/0 · e2e 83/0 under check and sanitize · check-data: render 11/1686/776 = Python for all 65,536 pixels · step-4 7 ok (screenshot beside OpenStreetMap) · VERIFY PASSED (3 min 18 s) |
@@ -67,7 +69,8 @@ Status values: `not started` → `in progress` → `waiting for review` → `app
 |---|---|---|
 | ~~DESIGN §9.4, §9.3, §8 and TESTING §7 wording~~ | — | Applied in step 3b (see `docs/steps/step-3b.md` Decisions) |
 | Store time per point? | Before stage 4 | Changes the `.gpt` format. DESIGN section 14 |
-| Base map provider for the page | Step 6 | CARTO dark (used in the mockup) or OpenStreetMap |
+| Base map provider for the page | Developer to confirm | Step 6 uses OpenStreetMap's standard tiles, darkened by CSS (CARTO's dark tiles need an account). A one-line change in `www/app.js` plus the CSP |
+| Test time budgets (TESTING §2) | Developer to confirm | Proposed: `make check` under 30 s, `make sanitize` under 60 s (now about 17 s and 23 s; the e2e budget of 5 s was passed in step 5a) |
 | License for the release | Step 9 | Others can't legally use a package with no license. E.g. MIT, Apache-2.0 or GPL-3.0 |
 
 ## Known issues

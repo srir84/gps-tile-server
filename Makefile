@@ -17,6 +17,10 @@ SRC      := $(wildcard src/*.c)
 LIB_SRC  := $(filter-out src/main.c,$(SRC))
 UNIT_SRC := $(wildcard tests/unit/*.c) tests/check.c
 
+# The map page and Leaflet, compiled into the program (src/www.h, tools/embed.sh).
+WWW      := www/index.html www/app.css www/app.js www/leaflet/leaflet.css www/leaflet/leaflet.js
+WWW_OBJ  := $(B)/obj/www.o
+
 BIN      := $(B)/gpstiles
 UNIT_BIN := $(B)/tests/unit
 SELF_BIN := $(B)/tests/always_fails
@@ -31,17 +35,25 @@ $(shell mkdir -p $(B) && echo '$(BUILD_CONFIG)' | cmp -s - $(CONFIG_STAMP) || ec
 
 all: $(BIN)
 
-$(BIN): $(call objects,$(SRC))
+$(BIN): $(call objects,$(SRC)) $(WWW_OBJ)
 	@mkdir -p $(dir $@)
 	$(CC) $(ALL_CFLAGS) -o $@ $^ $(LDLIBS)
 
-$(UNIT_BIN): $(call objects,$(LIB_SRC) $(UNIT_SRC))
+$(UNIT_BIN): $(call objects,$(LIB_SRC) $(UNIT_SRC)) $(WWW_OBJ)
 	@mkdir -p $(dir $@)
 	$(CC) $(ALL_CFLAGS) -o $@ $^ $(LDLIBS)
 
 $(SELF_BIN): $(call objects,tests/selftest/always_fails.c tests/check.c)
 	@mkdir -p $(dir $@)
 	$(CC) $(ALL_CFLAGS) -o $@ $^
+
+$(B)/gen/www.c: $(WWW) tools/embed.sh
+	@mkdir -p $(dir $@)
+	sh tools/embed.sh $(WWW) > $@.tmp && mv $@.tmp $@
+
+$(WWW_OBJ): $(B)/gen/www.c src/www.h $(CONFIG_STAMP)
+	@mkdir -p $(dir $@)
+	$(CC) $(ALL_CFLAGS) -c -o $@ $<
 
 $(B)/obj/%.o: %.c $(CONFIG_STAMP)
 	@mkdir -p $(dir $@)

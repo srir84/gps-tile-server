@@ -118,7 +118,7 @@ tests/
 ├── selftest/
 │   └── always_fails.c   fails on purpose: proves a failing test fails the run      (step 0a)
 ├── e2e/
-│   ├── run.py           runs every test_*.py, requires a catches: docstring        (step 0a)
+│   ├── run.py           runs every test_*.py, requires a catches: docstring; a test returning "SKIPPED: why" is counted apart (0a, 6)
 │   ├── test_cli.py      command-line exit codes and messages                       (step 0a)
 │   ├── test_check_runner.py  runs selftest/always_fails, checks the runner fails loudly (step 0a)
 │   ├── test_e2e_runner.py    runs run.py on fake test folders, checks it fails loudly    (step 0a)
@@ -130,6 +130,8 @@ tests/
 │   ├── test_info_count.py    `gpstiles info` / `count` vs oracle/gpt_rules.py and slow counts, broken_*.gpt (step 3b)
 │   ├── test_render.py        `gpstiles render`: PNGs decoded by oracle/tile_rules.py, pixel by pixel (step 4)
 │   ├── test_server.py        `gpstiles serve` over real HTTP: endpoints, bad requests, 50 at once (step 5a)
+│   ├── test_page.py          the map page: Leaflet's pinned hashes, CSP, headless Chrome clicks (step 6)
+│   ├── browser.py            drives headless Chrome over its DevTools pipe: open, run JavaScript, mouse, screenshot (step 6)
 │   └── test_<feature>.py   real HTTP against a running server                       (step 5a+)
 ├── validate/
 │   ├── lib.sh           shared helpers: scratch copy, the deliberately failing test    (step 0b)

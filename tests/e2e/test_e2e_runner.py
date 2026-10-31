@@ -57,6 +57,15 @@ def test_file_without_tests_fails():
     assert "file has no test_* functions" in result.stdout, result.stdout
 
 
+def test_a_skipped_test_is_counted_apart_never_as_passed():
+    """catches: a test that couldn't run here (e.g. no Chrome) reported as passed, so its checks look done"""
+    skip = 'def test_skip():\n    """catches: x"""\n    return "SKIPPED: no tool here"\n'
+    result = run_on({"test_a.py": GOOD, "test_b.py": skip})
+    assert result.returncode == 0, result.stdout
+    assert "SKIP test_b.py test_skip: no tool here" in result.stdout, result.stdout
+    assert "1 passed   0 failed   1 skipped" in result.stdout, result.stdout
+
+
 def test_generator_and_async_tests_fail():
     """catches: a test with yield or async def counts as passed without its body ever running"""
     gen = 'def test_gen():\n    """catches: x"""\n    assert False\n    yield\n'

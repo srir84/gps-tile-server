@@ -51,12 +51,13 @@ if ! base=$(git rev-parse -q --verify 'HEAD^{commit}'); then
 fi
 
 # The full change, new files included, built in a temporary index so the real one (and so the
-# next commit) is untouched. The builder's own notes (step file, PROGRESS.md) are left out.
+# next commit) is untouched. The builder's own notes (step file, PROGRESS.md) are left out, and so is
+# Leaflet (www/leaflet/): the release as published, minified, pinned by its official hash and tested.
 tmp_index=$(mktemp "${TMPDIR:-/tmp}/gpstiles-review-index.XXXXXX") || exit 1
 cp "$(git rev-parse --git-path index)" "$tmp_index" 2>/dev/null || rm -f "$tmp_index"
 GIT_INDEX_FILE=$tmp_index git add -A || exit 1
 GIT_INDEX_FILE=$tmp_index git diff --cached "$base" -- . \
-    ':(exclude,glob)docs/steps/step-*.md' ':(exclude)PROGRESS.md' > "$diff_file" || exit 1
+    ':(exclude,glob)docs/steps/step-*.md' ':(exclude)PROGRESS.md' ':(exclude)www/leaflet' > "$diff_file" || exit 1
 if [ ! -s "$diff_file" ]; then
     echo "review.sh: no changes since $base to review" >&2
     rm -f "$diff_file"
