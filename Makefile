@@ -72,6 +72,23 @@ verify:
 	done
 	@echo "VERIFY PASSED"
 
+# Local service on this Mac (TESTING.md §12.6). deploy-test is the pre-approval check: build/deploy-test/,
+# test label, free port, removed afterwards. The others act on the real service: after approval only.
+deploy-test: $(BIN)
+	@bash tools/deploy-test.sh
+
+deploy: check
+	@bash tools/deploy.sh deploy
+
+rollback:
+	@bash tools/deploy.sh rollback
+
+undeploy:
+	@bash tools/deploy.sh undeploy
+
+status:
+	@bash tools/deploy.sh status
+
 # Links .git/hooks/pre-commit to tools/pre-commit. Never replaces a hook that isn't ours.
 hooks:
 	@hook="$$(git rev-parse --git-path hooks)/pre-commit"; \
@@ -85,4 +102,4 @@ clean:
 
 -include $(patsubst %.c,$(B)/obj/%.d,$(SRC) $(UNIT_SRC) tests/selftest/always_fails.c)
 
-.PHONY: all check sanitize check-data verify hooks clean
+.PHONY: all check sanitize check-data verify hooks clean deploy-test deploy rollback undeploy status
