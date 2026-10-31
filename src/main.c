@@ -15,6 +15,7 @@
 #include "build.h"
 #include "geo.h"
 #include "import.h"
+#include "render.h"
 #include "tilefile.h"
 
 /* Copies at most size-1 bytes of an untrusted argument, replacing control characters with '?',
@@ -42,7 +43,9 @@ static void print_usage(void)
           "                           sort the points into a .gpt tile file\n"
           "  info FILE.gpt            print the point count, file size, bounds and start view\n"
           "                           (west,south,east,north) and the densest pixel per zoom\n"
-          "  count FILE.gpt Z X Y     print the number of points in map tile Z/X/Y\n",
+          "  count FILE.gpt Z X Y     print the number of points in map tile Z/X/Y\n"
+          "  render FILE.gpt Z X Y -o OUT.png\n"
+          "                           draw map tile Z/X/Y as a 256 x 256 heat-map PNG\n",
           stdout);
 }
 
@@ -665,6 +668,24 @@ static int cmd_info(int argc, char **argv)
     return 0;
 }
 
+/* Parses Z X Y for `command`: zoom 0..24, x and y below 2^zoom. Returns 0, or 2 after printing why. */
+static int parse_tile(const char *command, char **text, unsigned *zoom, uint32_t *x, uint32_t *y)
+{
+    unsigned long z, tx, ty;
+    if (parse_whole(text[0], GEO_MAX_ZOOM, &z) != 0)
+        return bad_argument(command, "zoom", text[0], "want a whole number from 0 to 24");
+    char want[64];
+    snprintf(want, sizeof want, "want a whole number from 0 to %lu at zoom %lu", (1ul << z) - 1, z);
+    if (parse_whole(text[1], (1ul << z) - 1, &tx) != 0)
+        return bad_argument(command, "x", text[1], want);
+    if (parse_whole(text[2], (1ul << z) - 1, &ty) != 0)
+        return bad_argument(command, "y", text[2], want);
+    *zoom = (unsigned)z;
+    *x = (uint32_t)tx;
+    *y = (uint32_t)ty;
+    return 0;
+}
+
 #define COUNT_USAGE "usage: gpstiles count FILE.gpt Z X Y"
 
 /* gpstiles count FILE.gpt Z X Y: prints the number of points in one tile (DESIGN §9.1). */
@@ -676,23 +697,76 @@ static int cmd_count(int argc, char **argv)
     }
     if (argv[1][0] == '-' || argc > 5) /* no options yet: a dash is a typo, not a file name */
         return bad_argument("count", "argument", first_option(argc, argv, 5), COUNT_USAGE);
-    unsigned long zoom, x, y;
-    if (parse_whole(argv[2], GEO_MAX_ZOOM, &zoom) != 0)
-        return bad_argument("count", "zoom", argv[2], "want a whole number from 0 to 24");
-    char want[64];
-    snprintf(want, sizeof want, "want a whole number from 0 to %lu at zoom %lu", (1ul << zoom) - 1, zoom);
-    if (parse_whole(argv[3], (1ul << zoom) - 1, &x) != 0)
-        return bad_argument("count", "x", argv[3], want);
-    if (parse_whole(argv[4], (1ul << zoom) - 1, &y) != 0)
-        return bad_argument("count", "y", argv[4], want);
+    unsigned zoom;
+    uint32_t x, y;
+    if (parse_tile("count", argv + 2, &zoom, &x, &y) != 0)
+        return 2;
     struct tilefile tf;
     if (open_gpt("count", argv[1], &tf) != 0)
         return 1;
     uint64_t first, end;
-    tilefile_tile(&tf, (unsigned)zoom, (uint32_t)x, (uint32_t)y, &first, &end);
+    tilefile_tile(&tf, zoom, x, y, &first, &end);
     printf("points=%" PRIu64 "\n", end - first);
     tilefile_close(&tf);
     return 0;
+}
+
+#define RENDER_USAGE "usage: gpstiles render FILE.gpt Z X Y -o OUT.png"
+
+/* gpstiles render FILE.gpt Z X Y -o OUT.png: draws one tile to a PNG file (DESIGN §5.5, §9.1), the same
+ * picture the server sends. The PNG is written to a temp file and renamed into place. */
+static int cmd_render(int argc, char **argv)
+{
+    const char *out_path = NULL;
+    char *args[4];
+    int n = 0;
+    for (int i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "-o") == 0 && out_path == NULL) {
+            if (i + 1 >= argc || argv[i + 1][0] == '\0')
+                return bad_argument("render", "-o", i + 1 < argc ? argv[i + 1] : argv[i], RENDER_USAGE);
+            out_path = argv[++i];
+        } else if (n < 4 && (n > 0 || argv[i][0] != '-')) { /* a dash is a typo only in the file name */
+            args[n++] = argv[i];
+        } else {
+            return bad_argument("render", "argument", argv[i], RENDER_USAGE);
+        }
+    }
+    if (n < 4 || out_path == NULL) {
+        fputs("gpstiles render: missing arguments (" RENDER_USAGE ")\n", stderr);
+        return 2;
+    }
+    unsigned zoom;
+    uint32_t x, y;
+    if (parse_tile("render", args + 1, &zoom, &x, &y) != 0)
+        return 2;
+    if (same_file(args[0], out_path)) /* the rename would replace the dataset with a picture */
+        return bad_argument("render", "-o", out_path, "it is also the input file");
+    struct tilefile tf;
+    if (open_gpt("render", args[0], &tf) != 0)
+        return 1;
+    unsigned char *png;
+    size_t size;
+    uint64_t points;
+    int failed = render_tile(&tf, zoom, x, y, &png, &size, &points);
+    tilefile_close(&tf);
+    if (failed) {
+        fputs("gpstiles render: out of memory\n", stderr);
+        return 1;
+    }
+    char *tmp_path;
+    FILE *out = open_temp_beside("render", out_path, &tmp_path);
+    int status = 1;
+    if (out != NULL) {
+        errno = 0;
+        int written = fwrite(png, 1, size, out) == size;
+        status = fclose(out) == 0 && written ? 0 : file_error("render", out_path, strerror(errno != 0 ? errno : EIO));
+        status = finish_temp("render", tmp_path, out_path, status);
+        free(tmp_path);
+    }
+    free(png);
+    if (status == 0)
+        printf("points=%" PRIu64 " bytes=%zu\n", points, size);
+    return status;
 }
 
 /* The end of every command: if its printed result couldn't be written (stdout closed, disk full), the
@@ -716,8 +790,8 @@ int main(int argc, char **argv)
     static const struct {
         const char *name;
         int (*run)(int argc, char **argv);
-    } commands[] = {{"where", cmd_where}, {"import", cmd_import}, {"build", cmd_build},
-                    {"info", cmd_info},   {"count", cmd_count}};
+    } commands[] = {{"where", cmd_where}, {"import", cmd_import}, {"build", cmd_build}, {"info", cmd_info},
+                    {"count", cmd_count}, {"render", cmd_render}};
     if (strcmp(argv[1], "help") == 0 || strcmp(argv[1], "--help") == 0) {
         print_usage();
         return finish_output("help", 0);

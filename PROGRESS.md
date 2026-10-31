@@ -6,9 +6,9 @@ The handoff file. Read it first. Update it at the start and end of every step.
 
 | | |
 |---|---|
-| **Current step** | 4: Tile drawing |
+| **Current step** | 5a: Web server |
 | **Status** | in progress |
-| **Next action** | Apply step 4 (built and reviewed in a scratch copy), verify, Codex review, then commit `step 4: tile drawing`. |
+| **Next action** | Apply step 5a (built in a scratch copy, Claude skeptic review running), verify, Codex review, then commit `step 5a: web server`. |
 | **Blocked on** | nothing |
 
 Approval: on 2026-10-31 the developer set the goal "complete each step … do not stop until the full project is completed", with Codex (gpt-6-astra) and a Claude Opus skeptic reviewing every step. Each step is committed after both reviews and a green `make verify`. Deploy is local only (this Mac); nothing is published.
@@ -24,8 +24,8 @@ Status values: `not started` → `in progress` → `waiting for review` → `app
 | 1 | Map math | approved | 2026-10-29 | `c587160` | `docs/steps/step-1.md` |
 | 2 | Importer | approved | 2026-10-29 | `0777186` | `docs/steps/step-2.md` |
 | 3a | Build: external sort + write `.gpt` | approved | 2026-10-31 | `c974041` | `docs/steps/step-3a.md` |
-| 3b | Read `.gpt`: tilefile, info, count | approved | 2026-10-31 | | `docs/steps/step-3b.md` |
-| 4 | Tile drawing | not started | | | |
+| 3b | Read `.gpt`: tilefile, info, count | approved | 2026-10-31 | `98e0f88` | `docs/steps/step-3b.md` |
+| 4 | Tile drawing | approved | 2026-10-31 | | `docs/steps/step-4.md` |
 | 5a | Web server | not started | | | |
 | 5b | Local deploy (service, smoke test, rollback) | not started | | | |
 | 6 | Map page | not started | | | |
@@ -48,6 +48,7 @@ Status values: `not started` → `in progress` → `waiting for review` → `app
 
 | Date | What | Command | Result |
 |---|---|---|---|
+| 2026-10-31 | Step 4 after both review rounds (Codex, Claude skeptic): `make verify` | `make verify` | unit 31/0 · e2e 83/0 under check and sanitize · check-data: render 11/1686/776 = Python for all 65,536 pixels · step-4 7 ok (screenshot beside OpenStreetMap) · VERIFY PASSED (3 min 18 s) |
 | 2026-10-31 | Step 3b after both review rounds (Codex, Claude skeptic): `make verify` | `make verify` | unit 28/0 · e2e 78/0 under check and sanitize · check-data: info = DESIGN §13 and the Python header, count 10/843/388 = 2,229,964 = slow count = its 4 children · step-0a 2 ok · 0b 7 ok · 1 2 ok · 2 3 ok · 3a 7 ok · 3b 3 ok · VERIFY PASSED (3 min 5 s) |
 | 2026-10-31 | Step 3a after both Claude skeptic rounds: `make verify` | `make verify` | unit 25/0 · e2e 71/0 under check and sanitize · check-data as before · step-0a 2 ok · 0b 7 ok · 1 2 ok · 2 3 ok · 3a 7 ok (256 runs at `--mem 1M`: 3 MiB peak) · VERIFY PASSED (2 min 57 s) |
 | 2026-10-30 | Step 3a: `make verify` from clean | `make clean && make verify` | unit 23/0 · e2e 65/0 under check and sanitize · check-data: import as step 2, build 1 run and 77 runs identical, `.gpt` = Python byte for byte · step-0a 2 ok · 0b 7 ok · 1 2 ok · 2 3 ok · 3a 5 ok · VERIFY PASSED (2 min 31 s) |

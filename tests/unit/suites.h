@@ -14,5 +14,7 @@ extern const struct check_case build_cases[];
 extern const size_t build_cases_count;
 extern const struct check_case tilefile_cases[];
 extern const size_t tilefile_cases_count;
+extern const struct check_case render_cases[];
+extern const size_t render_cases_count;
 
 #endif

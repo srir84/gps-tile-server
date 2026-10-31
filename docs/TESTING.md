@@ -128,12 +128,13 @@ tests/
 │   ├── test_import.py        `gpstiles import` vs the fixtures and oracle/import_rules.py, bad input (step 2)
 │   ├── test_build.py         `gpstiles build` vs oracle/gpt_rules.py, big and tiny --mem, file errors, killed builds (step 3a)
 │   ├── test_info_count.py    `gpstiles info` / `count` vs oracle/gpt_rules.py and slow counts, broken_*.gpt (step 3b)
+│   ├── test_render.py        `gpstiles render`: PNGs decoded by oracle/tile_rules.py, pixel by pixel (step 4)
 │   └── test_<feature>.py   real HTTP against a running server                       (step 5a+)
 ├── validate/
 │   ├── lib.sh           shared helpers: scratch copy, the deliberately failing test    (step 0b)
 │   └── step-N.sh        each step's validation (§12.4): step-0a.sh, step-0b.sh, ...   (step 0b+)
 ├── data/
-│   ├── check_tdrive.py  level 6: real-data checks (`make check-data`): import (step 2), build (step 3a), info + count (step 3b)
+│   ├── check_tdrive.py  level 6: real-data checks (`make check-data`): import (step 2), build (step 3a), info + count (step 3b), render (step 4)
 │   └── tdrive_counts.awk  the row rules in awk: independent T-Drive counts            (step 2)
 ├── oracle/
 │   └── *.py             independent answers: slow counts, plain sorts, PNG decoding

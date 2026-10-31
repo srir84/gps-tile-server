@@ -4,7 +4,8 @@ rules in tests/oracle/import_rules.py. Then `gpstiles build` of that .pts twice,
 --mem and with --mem 1M (many runs): both files must be identical and equal, byte for byte, to the
 file tests/oracle/gpt_rules.py makes with its own sort and counts. Then `gpstiles info` and `count` on
 that .gpt: the header against DESIGN §13 and the Python header, and the Beijing tile of DESIGN §13 and
-its 4 smaller tiles against a slow count over every point.
+its 4 smaller tiles against a slow count over every point. Then `gpstiles render` of central Beijing
+(11/1686/776, 1.8 million points): every pixel against Python's own pixel counts and color rule.
 Prints SKIPPED and exits 0 when data/ is missing. Needs GPSTILES_BIN. Exit code 0 = every check passed."""
 import array
 import collections
@@ -31,6 +32,7 @@ def load(name):
 
 rules = load("import_rules")
 gpt = load("gpt_rules")
+tile = load("tile_rules")
 
 
 def fail(message):
@@ -149,6 +151,29 @@ def check_read(path, codes, header):
     if sum(children.values()) != slow:
         fail("the 4 smaller tiles don't add up to 10/843/388")
     print(f"check-data: count 10/843/388 = {got:,} = slow count = sum of its 4 zoom-11 tiles; 0/0/0 = every point")
+    check_render(path, codes, header)
+
+
+def check_render(path, codes, header):
+    zoom, x, y = 11, 1686, 776
+    png = path.parent / "tile.png"
+    out = gpstiles("render", path, zoom, x, y, "-o", png).strip()
+    prefix = gpt.code_of(x, y)  # the tile's top 22 bits
+    counts = collections.Counter()
+    for c in codes:
+        if c >> 42 == prefix:
+            wx, wy = gpt.x_of(c), gpt.y_of(c)
+            counts[(wx >> 13) & 255, (wy >> 13) & 255] += 1  # a pixel at zoom 11 is 2^13 world units
+    if not out.startswith(f"points={sum(counts.values())} "):
+        fail(f"render 11/1686/776 printed '{out}', Python counts {sum(counts.values())} points")
+    width, height, rows = tile.decode_png(png.read_bytes())
+    max_count = header["max_pixel"][zoom]
+    wrong = [(px, py) for py in range(height) for px in range(width)
+             if rows[py][px] != tile.color(counts.get((px, py), 0), max_count)]
+    if (width, height) != (256, 256) or wrong:
+        fail(f"render 11/1686/776: {len(wrong)} pixels differ from Python, first {wrong[:3]}")
+    print(f"check-data: render 11/1686/776: {out}, all 65,536 pixels = Python's counts and colors "
+          f"({len(counts):,} lit, densest pixel at zoom 11 = {max_count:,})")
 
 
 if __name__ == "__main__":

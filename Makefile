@@ -5,7 +5,7 @@ CC     ?= cc
 PYTHON ?= python3
 WARN   := -std=c11 -Wall -Wextra -Wpedantic -Wshadow -Wconversion -Werror
 CFLAGS ?= -O2 -g
-LDLIBS += -lm
+LDLIBS += -lm -lz
 SANITIZE_FLAGS := -O1 -g -fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer
 
 # `make sanitize` re-runs this Makefile with B=build/san and MODE_FLAGS=$(SANITIZE_FLAGS).
