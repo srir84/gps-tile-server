@@ -55,3 +55,19 @@ tdrive_gpt() {
         fail "T-Drive import failed"
     "$ROOT/build/gpstiles" build -o "$TDRIVE_GPT" "$TDRIVE_PTS" > /dev/null || fail "T-Drive build failed"
 }
+
+# Imports and builds tdrive-sample, the first 500 T-Drive files in name order, into build/validate/ the same
+# way (step 5a: a second, smaller dataset). Sets TDRIVE_SAMPLE_GPT. Needs data/raw/tdrive_txt.
+tdrive_sample_gpt() {
+    TDRIVE_SAMPLE_GPT=$ROOT/build/validate/tdrive-sample.gpt
+    local pts=$ROOT/build/validate/tdrive-sample.pts
+    if [ "$TDRIVE_SAMPLE_GPT" -nt "$ROOT/build/gpstiles" ] && [ "$pts" -nt "$ROOT/build/gpstiles" ]; then
+        return 0
+    fi
+    mkdir -p "$ROOT/build/validate" || exit 1
+    rm -f "$pts" "$TDRIVE_SAMPLE_GPT"
+    # shellcheck disable=SC2046 # the names have no spaces
+    (cd "$ROOT" && build/gpstiles import --lon-col 3 --lat-col 4 -o "$pts" $(ls data/raw/tdrive_txt/*.txt | sort | head -500) > /dev/null) ||
+        fail "tdrive-sample import failed"
+    "$ROOT/build/gpstiles" build -o "$TDRIVE_SAMPLE_GPT" "$pts" > /dev/null || fail "tdrive-sample build failed"
+}

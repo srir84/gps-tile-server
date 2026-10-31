@@ -129,6 +129,7 @@ tests/
 │   ├── test_build.py         `gpstiles build` vs oracle/gpt_rules.py, big and tiny --mem, file errors, killed builds (step 3a)
 │   ├── test_info_count.py    `gpstiles info` / `count` vs oracle/gpt_rules.py and slow counts, broken_*.gpt (step 3b)
 │   ├── test_render.py        `gpstiles render`: PNGs decoded by oracle/tile_rules.py, pixel by pixel (step 4)
+│   ├── test_server.py        `gpstiles serve` over real HTTP: endpoints, bad requests, 50 at once (step 5a)
 │   └── test_<feature>.py   real HTTP against a running server                       (step 5a+)
 ├── validate/
 │   ├── lib.sh           shared helpers: scratch copy, the deliberately failing test    (step 0b)

@@ -3,6 +3,7 @@
  * bad arguments). Errors are one line on stderr. */
 #define _POSIX_C_SOURCE 200809L /* stat, mkstemp, fdopen with -std=c11 */
 
+#include <arpa/inet.h>
 #include <errno.h>
 #include <inttypes.h>
 #include <signal.h>
@@ -16,6 +17,7 @@
 #include "geo.h"
 #include "import.h"
 #include "render.h"
+#include "server.h"
 #include "tilefile.h"
 
 /* Copies at most size-1 bytes of an untrusted argument, replacing control characters with '?',
@@ -45,7 +47,9 @@ static void print_usage(void)
           "                           (west,south,east,north) and the densest pixel per zoom\n"
           "  count FILE.gpt Z X Y     print the number of points in map tile Z/X/Y\n"
           "  render FILE.gpt Z X Y -o OUT.png\n"
-          "                           draw map tile Z/X/Y as a 256 x 256 heat-map PNG\n",
+          "                           draw map tile Z/X/Y as a 256 x 256 heat-map PNG\n"
+          "  serve [--host 127.0.0.1] [--port 8080] [--timeout 10] FILE.gpt...\n"
+          "                           serve the datasets' tiles and info over HTTP (--port 0: any free port)\n",
           stdout);
 }
 
@@ -769,6 +773,71 @@ static int cmd_render(int argc, char **argv)
     return status;
 }
 
+#define SERVE_USAGE "usage: gpstiles serve [--host 127.0.0.1] [--port 8080] [--timeout 10] FILE.gpt..."
+
+static int serve_error(const char *what, const char *arg, const char *want)
+{
+    return bad_argument("serve", what, arg, want);
+}
+
+/* gpstiles serve ...: opens every .gpt and serves them until killed (DESIGN §9.1, §9.2). A dataset's
+ * id is its file name without .gpt. */
+static int cmd_serve(int argc, char **argv)
+{
+    const char *host = "127.0.0.1";
+    unsigned long port = 8080, timeout = SERVER_TIMEOUT_SECONDS;
+    int i = 1;
+    for (; i < argc && argv[i][0] == '-'; i++) {
+        const char *option = argv[i];
+        if (i + 1 >= argc)
+            return serve_error("argument", option, SERVE_USAGE);
+        const char *value = argv[++i];
+        if (strcmp(option, "--host") == 0) {
+            struct in_addr address;
+            if (inet_pton(AF_INET, value, &address) != 1)
+                return serve_error("--host", value, "want an IPv4 address such as 127.0.0.1");
+            host = value;
+        } else if (strcmp(option, "--port") == 0) {
+            if (parse_whole(value, 65535, &port) != 0)
+                return serve_error("--port", value, "want a port number from 0 to 65535 (0: any free port)");
+        } else if (strcmp(option, "--timeout") == 0) {
+            if (parse_whole(value, 3600, &timeout) != 0 || timeout == 0)
+                return serve_error("--timeout", value, "want the seconds a client has to send its request, 1 to 3600");
+        } else {
+            return serve_error("argument", option, SERVE_USAGE);
+        }
+    }
+    int count = argc - i;
+    if (count == 0) {
+        fputs("gpstiles serve: missing arguments (" SERVE_USAGE ")\n", stderr);
+        return 2;
+    }
+    if (count > SERVER_MAX_DATASETS)
+        return serve_error("argument", argv[i + SERVER_MAX_DATASETS], "at most 32 .gpt files");
+    static struct dataset datasets[SERVER_MAX_DATASETS];
+    for (int d = 0; d < count; d++) {
+        const char *path = argv[i + d], *slash = strrchr(path, '/');
+        const char *name = slash != NULL ? slash + 1 : path;
+        size_t length = strlen(name);
+        if (length < 5 || strcmp(name + length - 4, ".gpt") != 0 || length - 4 > SERVER_MAX_ID) {
+            return serve_error("file name", path, "want NAME.gpt: its NAME, 1 to 32 of a-z 0-9 - _, is the dataset id");
+        }
+        memcpy(datasets[d].id, name, length - 4);
+        datasets[d].id[length - 4] = '\0';
+        if (!server_valid_id(datasets[d].id))
+            return serve_error("file name", path, "want NAME.gpt: its NAME, 1 to 32 of a-z 0-9 - _, is the dataset id");
+        for (int e = 0; e < d; e++) {
+            if (strcmp(datasets[e].id, datasets[d].id) == 0)
+                return serve_error("file name", path, "two files have the same dataset id");
+        }
+    }
+    for (int d = 0; d < count; d++) {
+        if (open_gpt("serve", argv[i + d], &datasets[d].file) != 0)
+            return 1;
+    }
+    return server_run(host, (unsigned)port, (unsigned)timeout, datasets, (size_t)count);
+}
+
 /* The end of every command: if its printed result couldn't be written (stdout closed, disk full), the
  * command fails instead of reporting success. Returns status, or 1. */
 static int finish_output(const char *command, int status)
@@ -791,7 +860,7 @@ int main(int argc, char **argv)
         const char *name;
         int (*run)(int argc, char **argv);
     } commands[] = {{"where", cmd_where}, {"import", cmd_import}, {"build", cmd_build}, {"info", cmd_info},
-                    {"count", cmd_count}, {"render", cmd_render}};
+                    {"count", cmd_count}, {"render", cmd_render}, {"serve", cmd_serve}};
     if (strcmp(argv[1], "help") == 0 || strcmp(argv[1], "--help") == 0) {
         print_usage();
         return finish_output("help", 0);
