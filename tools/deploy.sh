@@ -30,23 +30,6 @@ LOG=$HOME_DIR/logs/serve.log
 # Bounded, direct requests: a server that never answers can't hang a deploy, and a proxy in the shell
 # can't stand in for 127.0.0.1.
 CURL=(curl -s --noproxy '*' --connect-timeout 2 --max-time 10)
-# Exits 0 only for a complete 256 x 256 RGBA PNG: signature, chunk CRCs, IHDR first, IEND last, and the
-# image data inflating to 256 rows of 1 + 1,024 bytes.
-PNG_CHECK='
-import struct, sys, zlib
-d = open(sys.argv[1], "rb").read()
-assert d[:8] == b"\x89PNG\r\n\x1a\n"
-i, kinds, idat = 8, [], b""
-while i < len(d):
-    n, kind = struct.unpack(">I4s", d[i:i + 8])
-    body = d[i + 8:i + 8 + n]
-    assert len(body) == n and struct.unpack(">I", d[i + 8 + n:i + 12 + n])[0] == zlib.crc32(kind + body)
-    kinds.append(kind)
-    idat += body if kind == b"IDAT" else b""
-    i += 12 + n
-assert kinds[0] == b"IHDR" and kinds[-1] == b"IEND" and d[16:24] == struct.pack(">II", 256, 256)
-assert len(zlib.decompress(idat)) == 256 * 1025
-'
 
 say() {
     echo "deploy: $*"
@@ -133,7 +116,7 @@ smoke_url() {
         # The whole tile, then decoded: every chunk's CRC, IEND last, the image data inflated to 256 rows.
         rm -f "$tile"
         "${CURL[@]}" -f -o "$tile" "$url/tiles/$id/0/0/0.png" || { say "smoke: tile 0/0/0 of $id didn't download"; return 1; }
-        python3 -I -c "$PNG_CHECK" "$tile" 2> /dev/null || { say "smoke: tile 0/0/0 of $id is not a whole 256 x 256 PNG"; return 1; }
+        python3 -I tools/png_check.py "$tile" 2> /dev/null || { say "smoke: tile 0/0/0 of $id is not a whole 256 x 256 PNG"; return 1; }
     done < <(datasets)
     code=$("${CURL[@]}" -o /dev/null -w '%{http_code}' "$url/no-such-page")
     [ "$code" = 404 ] || { say "smoke: a bad URL answered '$code', not 404"; return 1; }

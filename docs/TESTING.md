@@ -134,6 +134,7 @@ tests/
 │   ├── browser.py            drives headless Chrome over its DevTools pipe: open, run JavaScript, mouse, screenshot (step 6)
 │   ├── test_area.py          box counts and hover boxes vs oracle/box_rules.py slow counts; hover and a drawn box in Chrome (step 7)
 │   ├── test_export.py        CSV export vs slow counts, row limit, clients that hang up or stop reading, the page's Export link (step 8)
+│   ├── test_bench.py         `gpstiles bench`: one row per zoom, p50 ≤ p99 ≤ max, the tiles Python expects (step 9)
 │   └── test_<feature>.py   real HTTP against a running server                       (step 5a+)
 ├── validate/
 │   ├── lib.sh           shared helpers: scratch copy, the deliberately failing test    (step 0b)
@@ -317,7 +318,7 @@ The "break on purpose" proof is not part of `make verify`. The agent does it by 
 |---|---|
 | When | From step 9. Only on an approved commit with a clean tree |
 | `make release-test` | Same package and smoke test in `build/release-test/`, no tag. Used before approval |
-| `make release VERSION=x.y.z` | Optimized build → `dist/gpstiles-x.y.z-macos-arm64.tar.gz` (binary, README) + `.sha256` file → local git tag `vx.y.z` |
+| `make release VERSION=x.y.z` | Optimized build of the commit itself (`git archive`), for macOS 13 or later → `dist/gpstiles-x.y.z-macos-arm64.tar.gz` (binary, README, Leaflet's license, and `LICENSE` once there is one) + `.sha256` file → local git tag `vx.y.z` |
 | Smoke test | Unpack into a temp folder. The unpacked `gpstiles` imports a 10-row CSV the test writes there, builds it, serves it on `--port 0`, and the smoke checks run against it |
 | Publishing | Uploading anywhere (e.g. GitHub Releases) is outward-facing: only after the developer says so, and only once a GitHub repo exists |
 | Later | Linux build (stage 5+) |

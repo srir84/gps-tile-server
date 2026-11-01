@@ -11,6 +11,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <time.h>
 #include <unistd.h>
 
 #include "build.h"
@@ -48,6 +49,7 @@ static void print_usage(void)
           "  count FILE.gpt Z X Y     print the number of points in map tile Z/X/Y\n"
           "  render FILE.gpt Z X Y -o OUT.png\n"
           "                           draw map tile Z/X/Y as a 256 x 256 heat-map PNG\n"
+          "  bench FILE.gpt           time drawing tiles at each zoom: render only, no HTTP (p50/p99 in ms)\n"
           "  serve [--host 127.0.0.1] [--port 8080] [--timeout 10] FILE.gpt...\n"
           "                           serve the datasets' tiles and info over HTTP (--port 0: any free port)\n",
           stdout);
@@ -773,6 +775,72 @@ static int cmd_render(int argc, char **argv)
     return status;
 }
 
+#define BENCH_USAGE "usage: gpstiles bench FILE.gpt"
+#define BENCH_TILES 100 /* renders timed per zoom */
+
+static int compare_double(const void *a, const void *b)
+{
+    double x = *(const double *)a, y = *(const double *)b;
+    return (x > y) - (x < y);
+}
+
+/* gpstiles bench FILE.gpt: how fast tiles are drawn at each zoom (DESIGN §9.1), the way the server
+ * draws them (count + color + PNG), without HTTP, one at a time, with the file already in memory. At each
+ * zoom it renders the tiles of 100 points spread evenly through the file, so busy places are timed more
+ * often, as a map user would ask for them; at low zooms that is the same 1 or 2 tiles again and again
+ * (the `tiles` column says how many). Speed only, never pass/fail. */
+static int cmd_bench(int argc, char **argv)
+{
+    if (argc < 2) {
+        fputs("gpstiles bench: missing arguments (" BENCH_USAGE ")\n", stderr);
+        return 2;
+    }
+    if (argv[1][0] == '-' || argc > 2)
+        return bad_argument("bench", "argument", first_option(argc, argv, 2), BENCH_USAGE);
+    struct tilefile tf;
+    if (open_gpt("bench", argv[1], &tf) != 0)
+        return 1;
+    if (tf.header.count == 0) {
+        tilefile_close(&tf);
+        return file_error("bench", argv[1], "has no points to time");
+    }
+    printf("zoom renders tiles p50_ms p99_ms max_ms points_per_render\n");
+    for (unsigned zoom = 0; zoom <= GEO_MAX_ZOOM; zoom++) {
+        double ms[BENCH_TILES];
+        struct geo_tile timed[BENCH_TILES];
+        uint64_t points_total = 0;
+        int distinct = 0;
+        for (int k = 0; k < BENCH_TILES; k++) {
+            struct geo_tile tile = geo_tile_of(tilefile_code(&tf, tf.header.count * (uint64_t)k / BENCH_TILES), zoom);
+            int seen = 0;
+            for (int j = 0; j < k && !seen; j++)
+                seen = timed[j].x == tile.x && timed[j].y == tile.y;
+            distinct += !seen;
+            timed[k] = tile;
+            struct timespec start, end;
+            unsigned char *png;
+            size_t size;
+            uint64_t points;
+            clock_gettime(CLOCK_MONOTONIC, &start);
+            int failed = render_tile(&tf, zoom, tile.x, tile.y, &png, &size, &points);
+            clock_gettime(CLOCK_MONOTONIC, &end);
+            if (failed) {
+                tilefile_close(&tf);
+                fputs("gpstiles bench: out of memory\n", stderr);
+                return 1;
+            }
+            free(png);
+            ms[k] = (double)(end.tv_sec - start.tv_sec) * 1e3 + (double)(end.tv_nsec - start.tv_nsec) / 1e6;
+            points_total += points;
+        }
+        qsort(ms, BENCH_TILES, sizeof ms[0], compare_double);
+        printf("%u %d %d %.2f %.2f %.2f %" PRIu64 "\n", zoom, BENCH_TILES, distinct, ms[BENCH_TILES / 2 - 1],
+               ms[(BENCH_TILES * 99 + 99) / 100 - 1], ms[BENCH_TILES - 1], points_total / BENCH_TILES);
+    }
+    tilefile_close(&tf);
+    return 0;
+}
+
 #define SERVE_USAGE "usage: gpstiles serve [--host 127.0.0.1] [--port 8080] [--timeout 10] FILE.gpt..."
 
 static int serve_error(const char *what, const char *arg, const char *want)
@@ -860,7 +928,7 @@ int main(int argc, char **argv)
         const char *name;
         int (*run)(int argc, char **argv);
     } commands[] = {{"where", cmd_where}, {"import", cmd_import}, {"build", cmd_build}, {"info", cmd_info},
-                    {"count", cmd_count}, {"render", cmd_render}, {"serve", cmd_serve}};
+                    {"count", cmd_count}, {"render", cmd_render}, {"bench", cmd_bench}, {"serve", cmd_serve}};
     if (strcmp(argv[1], "help") == 0 || strcmp(argv[1], "--help") == 0) {
         print_usage();
         return finish_output("help", 0);

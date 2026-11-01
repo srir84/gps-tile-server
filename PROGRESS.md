@@ -6,9 +6,9 @@ The handoff file. Read it first. Update it at the start and end of every step.
 
 | | |
 |---|---|
-| **Current step** | 9: Stage 1 report |
-| **Status** | in progress |
-| **Next action** | `make deploy` of the step-8 commit, then step 9 (bench, README, `make release-test`, the stage 1 report), verify, reviews, commit, deploy, then `make release VERSION=0.1.0` (local only). |
+| **Current step** | 9: Stage 1 report + release (the last step of stage 1) |
+| **Status** | approved |
+| **Next action** | `make deploy` of the step-9 commit, then `make release VERSION=0.1.0` (local only: a package in `dist/` and a local tag, nothing pushed or uploaded). Then stage 2 (DESIGN §12.3), only when the developer says so. |
 | **Blocked on** | nothing |
 
 Approval: on 2026-10-31 the developer set the goal "complete each step … do not stop until the full project is completed", with Codex (gpt-6-astra) and a Claude Opus skeptic reviewing every step. Each step is committed after both reviews and a green `make verify`. Deploy is local only (this Mac); nothing is published.
@@ -30,8 +30,8 @@ Status values: `not started` → `in progress` → `waiting for review` → `app
 | 5b | Local deploy (service, smoke test, rollback) | approved | 2026-10-31 | `e46af4d` | `docs/steps/step-5b.md` |
 | 6 | Map page | approved | 2026-10-31 | `e68e36f` | `docs/steps/step-6.md` |
 | 7 | Area count + API | approved | 2026-10-31 | `da206fe` | `docs/steps/step-7.md` |
-| 8 | Export | approved | 2026-10-31 | | `docs/steps/step-8.md` |
-| 9 | Stage 1 report + release | not started | | | |
+| 8 | Export | approved | 2026-10-31 | `820f438` | `docs/steps/step-8.md` |
+| 9 | Stage 1 report + release | approved | 2026-10-31 | | `docs/steps/step-9.md` |
 
 ## Done before step 0 (planning)
 
@@ -48,6 +48,8 @@ Status values: `not started` → `in progress` → `waiting for review` → `app
 
 | Date | What | Command | Result |
 |---|---|---|---|
+| 2026-10-31 | Step 9 after both review rounds (Codex, Claude skeptic) and the fixes after them: `make verify` | `make verify` | unit 33/0 · e2e 119/0 under check and sanitize · step-9 15 ok (`make release-test`'s package on its own; a real `make release` in a throwaway repo; import 1.83 s, build 0.96 s, bench) · VERIFY PASSED (12 min 29 s) |
+| 2026-10-31 | Deploy of step 8 (`820f438`) | `make deploy`, `make status` | smoke test green, no rollback (pid 83707) · the live export: `X-Total-Points: 239864` for the airport box |
 | 2026-10-31 | Step 8 after both review rounds (Codex, Claude skeptic): `make verify` | `make verify` | unit 33/0 · e2e 117/0 under check and sanitize · step-8 5 ok (real T-Drive: rows = Python's points, the page's Export, a steady slow reader) · VERIFY PASSED (11 min 7 s) |
 | 2026-10-31 | Deploy of step 7 (`da206fe`) | `make deploy`, `make status` | smoke test green on the first try (pid 84451) · the live count API: 239,864 for the airport box |
 | 2026-10-31 | Step 7 after both review rounds (Codex, Claude skeptic): `make verify` | `make verify` | unit 33/0 · e2e 103/0 under check and sanitize · step-7 4 ok (real T-Drive, the page's hover and box = Python) · step-5b 21 deploy scenarios · VERIFY PASSED (8 min 5 s) |
@@ -76,10 +78,11 @@ Status values: `not started` → `in progress` → `waiting for review` → `app
 | Base map provider for the page | Developer to confirm | Step 6 uses OpenStreetMap's standard tiles, darkened by CSS (CARTO's dark tiles need an account). A one-line change in `www/app.js` plus the CSP |
 | Box rule wording (DESIGN §9.2) | Developer to confirm | Longitude 180 as a box edge = the world's last unit; bbox at most 127 characters, each number at most 63. See `docs/steps/step-7.md` Decisions |
 | A total time limit on exports | Developer to confirm | None in step 8, on purpose: a client that keeps reading is served; one that pauses 3 × timeout is let go. See `docs/steps/step-8.md` Decisions |
-| Test time budgets (TESTING §2) | Developer to confirm | Proposed: `make check` under 30 s, `make sanitize` under 60 s (now about 17 s and 23 s; the e2e budget of 5 s was passed in step 5a) |
-| License for the release | Step 9 | Others can't legally use a package with no license. E.g. MIT, Apache-2.0 or GPL-3.0 |
+| Test time budgets (TESTING §2) | Developer to confirm | Proposed: `make check` under 90 s, `make sanitize` under 120 s, `make verify` under 15 minutes (now 57 s, 64 s and 12 min 29 s: the headless Chrome page tests and the export reader tests). See `docs/steps/step-9.md` Decisions |
+| License | Developer to choose | v0.1.0 is packaged without one, so others can't legally use it. E.g. MIT, Apache-2.0 or GPL-3.0. Once a `LICENSE` is committed, `make release` packs it |
 
 ## Known issues
 - A fresh clone has no pre-commit hook until `make hooks` is run (installed in this checkout).
 - Leak checks are not available in `make sanitize` on macOS arm64 (no LeakSanitizer). Overflows and use-after-free are caught.
 - A step's commit hash is written into this file after the commit, so it goes in with the next step's commit.
+- The release package is not signed with a Developer ID or notarized: on another Mac, Gatekeeper blocks it until its quarantine flag is removed (`README.md` says how).

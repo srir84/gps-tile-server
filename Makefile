@@ -101,6 +101,17 @@ undeploy:
 status:
 	@bash tools/deploy.sh status
 
+# A package others can install (TESTING.md §12.7). release-test is the pre-approval check: the package and
+# its smoke test in build/release-test/, no tag. release: dist/ + .sha256 + a local tag, after approval only.
+release-test:
+	@bash tools/release.sh test
+
+# VERSION reaches the script through the environment, quoted by the shell: never pasted into the command.
+release: export RELEASE_VERSION = $(VERSION)
+release:
+	@test -n "$$RELEASE_VERSION" || { echo "usage: make release VERSION=x.y.z"; exit 2; }
+	@bash tools/release.sh "$$RELEASE_VERSION"
+
 # Links .git/hooks/pre-commit to tools/pre-commit. Never replaces a hook that isn't ours.
 hooks:
 	@hook="$$(git rev-parse --git-path hooks)/pre-commit"; \
@@ -114,4 +125,4 @@ clean:
 
 -include $(patsubst %.c,$(B)/obj/%.d,$(SRC) $(UNIT_SRC) tests/selftest/always_fails.c)
 
-.PHONY: all check sanitize check-data verify hooks clean deploy-test deploy rollback undeploy status
+.PHONY: all check sanitize check-data verify hooks clean deploy-test deploy rollback undeploy status release-test release
