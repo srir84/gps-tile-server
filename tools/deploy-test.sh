@@ -4,8 +4,9 @@
 # real service. Covers: a failed first install leaves nothing; a good release goes live; a release name is
 # never reused; a release that works alone but fails as the service is rolled back; programs that exit,
 # serve bad tiles or hang are refused before the service is touched; a bad datasets.conf and another
-# program on the port are refused; `rollback` swaps releases; launchd restarts a killed server; `status`
-# answers quickly; everything is removed afterwards. On failure the service log is kept in build/.
+# program on the port are refused; the port changes only after an undeploy; `rollback` swaps releases;
+# launchd restarts a killed server; `status` answers quickly; everything is removed afterwards. On failure
+# the service log is kept in build/.
 set -u
 cd "$(dirname "$0")/.." || exit 1
 ROOT=$(pwd)
@@ -329,6 +330,14 @@ tools/deploy.sh undeploy > /dev/null || fail "undeploy failed"
 launchctl print "$DOMAIN/$GPSTILES_LABEL" > /dev/null 2>&1 && fail "the test service is still loaded"
 tools/deploy.sh status > "$work/status.out" 2>&1
 grep -q "^deploy: not answering on" "$work/status.out" || fail "status after undeploy: $(cat "$work/status.out")"
+
+# 15. After undeploy, a deploy on another port works: the way to move the service that 8c's refusal names.
+new_port=$(python3 -I -c 'import socket; s = socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1])')
+GPSTILES_PORT=$new_port deploy test-new-port build/gpstiles || fail "a deploy on another port after undeploy: $(tail -1 "$work/deploy.out")"
+GPSTILES_PORT=$new_port tools/deploy.sh smoke > /dev/null || fail "the moved service doesn't answer on port $new_port"
+GPSTILES_PORT=$new_port tools/deploy.sh undeploy > /dev/null || fail "undeploy of the moved service failed"
+launchctl print "$DOMAIN/$GPSTILES_LABEL" > /dev/null 2>&1 && fail "the moved test service is still loaded"
+ok "after undeploy, the service moves to another port (port $new_port answered)"
 cleanup
 [ ! -e "$work" ] || fail "$work is still there"
 ok "test service removed, nothing left in build/deploy-test"

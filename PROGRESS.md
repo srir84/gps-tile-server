@@ -6,9 +6,9 @@ The handoff file. Read it first. Update it at the start and end of every step.
 
 | | |
 |---|---|
-| **Current step** | 9: Stage 1 report + release (the last step of stage 1) |
+| **Current step** | Stage 1 complete (steps 0a–9) |
 | **Status** | approved |
-| **Next action** | `make deploy` of the step-9 commit, then `make release VERSION=0.1.0` (local only: a package in `dist/` and a local tag, nothing pushed or uploaded). Then stage 2 (DESIGN §12.3), only when the developer says so. |
+| **Next action** | The developer's open decisions below (license first). Stage 2 (DESIGN §12.3) starts only when the developer says so. |
 | **Blocked on** | nothing |
 
 Approval: on 2026-10-31 the developer set the goal "complete each step … do not stop until the full project is completed", with Codex (gpt-6-astra) and a Claude Opus skeptic reviewing every step. Each step is committed after both reviews and a green `make verify`. Deploy is local only (this Mac); nothing is published.
@@ -31,7 +31,7 @@ Status values: `not started` → `in progress` → `waiting for review` → `app
 | 6 | Map page | approved | 2026-10-31 | `e68e36f` | `docs/steps/step-6.md` |
 | 7 | Area count + API | approved | 2026-10-31 | `da206fe` | `docs/steps/step-7.md` |
 | 8 | Export | approved | 2026-10-31 | `820f438` | `docs/steps/step-8.md` |
-| 9 | Stage 1 report + release | approved | 2026-10-31 | | `docs/steps/step-9.md` |
+| 9 | Stage 1 report + release | approved | 2026-10-31 | `7f21698` | `docs/steps/step-9.md` |
 
 ## Done before step 0 (planning)
 
@@ -48,6 +48,10 @@ Status values: `not started` → `in progress` → `waiting for review` → `app
 
 | Date | What | Command | Result |
 |---|---|---|---|
+| 2026-10-31 | Deploy fix: `make undeploy` now also removes the start script `serve.sh` (it kept the old port, so the deploy's port guard refused every move, even after undeploy) | `make deploy-test` | new scenario 15 (undeploy, then a deploy on another port answers there) · DEPLOY-TEST PASSED · break P1 (the old undeploy) caught: `a deploy on another port after undeploy: … installed on another port` |
+| 2026-10-31 | Service moved to port 8090 (developer's choice: a chat app of theirs uses 8080, and Chrome kept that app's page for 127.0.0.1:8080) | `make undeploy`, the old `serve.sh` removed by hand, `GPSTILES_PORT=8090 make deploy` | smoke test green on http://127.0.0.1:8090/ (pid 95803) · nothing listening on 8080 |
+| 2026-10-31 | Release v0.1.0, local only | `make release VERSION=0.1.0`, `shasum -a 256 -c`, `git tag -n` | smoke test green on the unpacked package · `dist/gpstiles-0.1.0-macos-arm64.tar.gz` (90,618 bytes: `gpstiles`, `README.md`, `LEAFLET-LICENSE`, owned by root; links only libSystem and libz; built for macOS 13.0) + `.sha256`: OK · annotated tag `v0.1.0` on `7f21698` · no git remote: nothing pushed or uploaded |
+| 2026-10-31 | Deploy of step 9 (`7f21698`) | `make deploy`, `make status` | smoke test green, no rollback (58 s, pid 89721) · current `releases/7f21698-20261031195723`, previous `releases/820f438-20261031184524` |
 | 2026-10-31 | Step 9 after both review rounds (Codex, Claude skeptic) and the fixes after them: `make verify` | `make verify` | unit 33/0 · e2e 119/0 under check and sanitize · step-9 15 ok (`make release-test`'s package on its own; a real `make release` in a throwaway repo; import 1.83 s, build 0.96 s, bench) · VERIFY PASSED (12 min 29 s) |
 | 2026-10-31 | Deploy of step 8 (`820f438`) | `make deploy`, `make status` | smoke test green, no rollback (pid 83707) · the live export: `X-Total-Points: 239864` for the airport box |
 | 2026-10-31 | Step 8 after both review rounds (Codex, Claude skeptic): `make verify` | `make verify` | unit 33/0 · e2e 117/0 under check and sanitize · step-8 5 ok (real T-Drive: rows = Python's points, the page's Export, a steady slow reader) · VERIFY PASSED (11 min 7 s) |
@@ -85,4 +89,6 @@ Status values: `not started` → `in progress` → `waiting for review` → `app
 - A fresh clone has no pre-commit hook until `make hooks` is run (installed in this checkout).
 - Leak checks are not available in `make sanitize` on macOS arm64 (no LeakSanitizer). Overflows and use-after-free are caught.
 - A step's commit hash is written into this file after the commit, so it goes in with the next step's commit.
+- **On this Mac the service runs on port 8090**, not 8080: `GPSTILES_PORT=8090 make deploy` / `make status` / `make rollback`. Without it they look at 8080 (`status`: "not answering"; `deploy`, `rollback`: refused, "installed on another port").
 - The release package is not signed with a Developer ID or notarized: on another Mac, Gatekeeper blocks it until its quarantine flag is removed (`README.md` says how).
+- If `tests/validate/step-9.sh` fails during its unwritable-`dist/` test, its temp folder (`$TMPDIR/gpstiles-step9.*`) is left behind: `rm -rf` can't empty the read-only folder. Passing runs clean up. Fix: `chmod -R u+w` before the `rm -rf` in its exit trap (found after the step 9 commit, when a deliberate break failed there).

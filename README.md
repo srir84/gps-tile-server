@@ -96,6 +96,8 @@ mkdir -p ~/.local/gpstiles && echo "$PWD/data/build/tdrive.gpt" > ~/.local/gpsti
 
 Logs: `~/.local/gpstiles/logs/serve.log`. It listens on 127.0.0.1 only, so other computers can't reach it.
 
+It uses port 8080. If another program needs that port, move the service: `make undeploy`, then `GPSTILES_PORT=8090 make deploy`, and open http://127.0.0.1:8090. Later `make deploy`, `make status` and `make rollback` need the same `GPSTILES_PORT=8090` in front (without it they look at 8080: `status` says "not answering", and `deploy` and `rollback` refuse to move the service).
+
 ## Checks
 
 | Command | Runs |

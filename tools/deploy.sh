@@ -5,7 +5,7 @@
 #             releases/<commit>-<time>, switch `current`, restart, smoke-test the service; anything red or
 #             an interruption before the smoke test passes puts back what was there and exits 1
 #   rollback  switch `current` and `previous`, restart, smoke test
-#   undeploy  stop the service and remove its launchd file (releases and logs are kept)
+#   undeploy  stop the service and remove its launchd file and start script (releases and logs are kept)
 #   status    the service, its pid, the release, whether it answers
 # Settings (tests change them; the defaults are the real service):
 #   GPSTILES_HOME     install folder                         (~/.local/gpstiles)
@@ -401,7 +401,8 @@ rollback) rollback ;;
 undeploy)
     lock
     stop_service || die "the service is still loaded: launchctl bootout failed (gui/$(id -u)/$LABEL)"
-    rm -f "$PLIST"
+    # The start script holds the port: removed with the launchd file, the next deploy may choose another one.
+    rm -f "$PLIST" "$HOME_DIR/serve.sh"
     say "service $LABEL stopped and removed (files kept in $HOME_DIR)"
     ;;
 status) status ;;
