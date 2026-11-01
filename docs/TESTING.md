@@ -136,6 +136,7 @@ tests/
 │   ├── test_export.py        CSV export vs slow counts, row limit, clients that hang up or stop reading, the page's Export link (step 8)
 │   ├── test_bench.py         `gpstiles bench`: one row per zoom, p50 ≤ p99 ≤ max, the tiles Python expects (step 9)
 │   ├── test_fetch_usgs.py    tools/fetch-usgs.py against a fake USGS: windows, counts, errors, resuming (step 11)
+│   ├── test_nyc_taxi.py      tools/nyc-taxi.py on tiny Parquet files (needs DuckDB in data/tools/venv, else SKIPPED) (step 14)
 │   └── test_<feature>.py   real HTTP against a running server                       (step 5a+)
 ├── validate/
 │   ├── lib.sh           shared helpers: scratch copy, the deliberately failing test    (step 0b)
@@ -145,6 +146,7 @@ tests/
 │   ├── check_geolife.py the same for GeoLife: counts = awk = DESIGN §13, codes = Python, tiles add up, known places (step 10)
 │   ├── check_usgs.py    the same for the USGS earthquakes, worldwide (step 11)
 │   ├── check_porto.py   the same for the Porto taxis: polylines, counts = csv + json, a many-runs build (step 12)
+│   ├── check_nyc.py     the same for the NYC taxis 2009–2010: counts and places = DuckDB, 680 million points (step 14)
 │   └── row_counts.awk   the row rules in awk, any columns: independent counts           (step 2; any columns from step 10)
 ├── oracle/
 │   └── *.py             independent answers: slow counts, plain sorts, PNG decoding
@@ -159,7 +161,7 @@ tests/
 | Answer | Independent source |
 |---|---|
 | Place → map square | OpenStreetMap tile formula, computed by hand or in Python |
-| Row counts, skipped rows | `awk` over the raw files; for polylines (Porto), Python's own `csv` and `json` modules |
+| Row counts, skipped rows | `awk` over the raw files; for polylines (Porto), Python's own `csv` and `json` modules; for Parquet (NYC), DuckDB's SQL |
 | Sorted order | Python `sorted()` on the same `.pts` |
 | Points in a square or a box | Python slow count: look at every point |
 | Tile picture | Python decodes the PNG (`zlib`) and checks pixel colors and the transparent pixels |
@@ -221,6 +223,7 @@ At least 2 deliberate breaks per step from step 1 on. Steps 0a and 0b use a setu
 | 11 | `fetch-usgs.py` against a fake USGS: pages joined with no row lost or doubled where a page ends (several quakes at the last row's time), each period = the fake's count | A server error retried, then a clean failure that leaves no half-written file · a period whose rows ≠ its count refused · an empty period · an unexpected header refused |
 | 12 | `porto_small.csv` (Porto's layout: quoted fields, an empty trip, a trip with a point at (0,0) and one off the map) → known counts and codes = the Python rules (their own CSV and list reader) · random polylines = the Python rules | Broken lists (unclosed, a missing number, a trailing comma, letters, 3 numbers in a pair), an unclosed quote, a row over 1,000,000 bytes → malformed rows, nothing of them imported · `--polyline` with `--lon-col` refused |
 | 13 | Random dense tiles (clusters, repeats, every zoom 0–24): the new pixel counts = counting point by point · the old render tests (Python pixel counts) unchanged | A tile with one point, an empty tile, a whole tile in one pixel |
+| 14 | `tools/nyc-taxi.py` on tiny Parquet files made by DuckDB (2009's and 2010's column names; NULL, NaN, infinity, (0,0), the map's edges): known counts (SKIPPED without DuckDB) | Output to a file and a file with zone numbers refused · `make check-data`: counts = DuckDB's own SQL count and DESIGN §13; a build in several runs; Manhattan's tile and 3 places = DuckDB's counts inside their edges · `step-14.sh`: the API at JFK = DuckDB, the page, bench |
 
 ---
 

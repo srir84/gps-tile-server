@@ -61,6 +61,7 @@ PY
 [ -f "$PORTO_DATA" ] || exit 0
 bench=$ROOT/build/validate/step-13-bench.txt
 build/gpstiles bench "$PORTO_GPT" > "$bench" || fail "bench failed"
+[ "$(awk '$1 ~ /^[0-9]+$/' "$bench" | wc -l | tr -d ' ')" = 25 ] || fail "bench printed $(wc -l < "$bench") lines, not a row a zoom"
 worst=$(awk '$1 ~ /^[0-9]+$/ && $1 <= 13 { if ($5 > w) w = $5 } END { print w }' "$bench")
 low=$(awk '$1 ~ /^[0-9]+$/ && $1 <= 5 { if ($5 > w) w = $5 } END { print w }' "$bench")
 # Zooms 0–5 hold nearly all 83 million points in a few pixels: walking them takes 164 ms, cutting under 1 ms.

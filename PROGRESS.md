@@ -6,9 +6,9 @@ The handoff file. Read it first. Update it at the start and end of every step.
 
 | | |
 |---|---|
-| **Current step** | 13: Fast tiles (stage 4, DESIGN §12.6) |
+| **Current step** | 14: NYC taxis 2009–2010 (stage 4, DESIGN §12.6) |
 | **Status** | approved |
-| **Next action** | Step 13: `render_count` by splitting dense cells, verify, both reviews, commit, deploy. Then step 14 (NYC taxis 2009–2010), step 15 (a billion points: NOAA AIS) + stage 4 report. Then stage 5, as the developer set on 2026-11-01: "proceed with all stages do not stop until all stages are complete". |
+| **Next action** | Step 14: `tools/nyc-taxi.py`, NYC's checks, verify, both reviews, commit, deploy. Then step 15 (a billion points: NOAA AIS) + stage 4 report. Then stage 5, as the developer set on 2026-11-01: "proceed with all stages do not stop until all stages are complete". |
 | **Blocked on** | nothing |
 
 Stage 2 approval: on 2026-11-01 the developer said "continue with stage implementation make sure everything works all tests pass", so stage 2 runs the same way as stage 1.
@@ -52,8 +52,8 @@ Status values: `not started` → `in progress` → `waiting for review` → `app
 
 | Step | Name | Status | Date | Commit | Review |
 |---|---|---|---|---|---|
-| 13 | Fast tiles | approved | 2026-11-01 | | `docs/steps/step-13.md` |
-| 14 | NYC taxis 2009–2010 | not started | | | |
+| 13 | Fast tiles | approved | 2026-11-01 | `fb1148b` | `docs/steps/step-13.md` |
+| 14 | NYC taxis 2009–2010 | approved | 2026-11-01 | | `docs/steps/step-14.md` |
 | 15 | A billion points (NOAA AIS) + stage 4 report | not started | | | |
 
 ## Done before step 0 (planning)
@@ -71,6 +71,9 @@ Status values: `not started` → `in progress` → `waiting for review` → `app
 
 | Date | What | Command | Result |
 |---|---|---|---|
+| 2026-11-01 | Step 14 after both review rounds (Codex: 2 medium + 1 low, then 1 low; Claude skeptic: 1 medium + 4 low, then 3 low; all fixed): `make verify` | `make verify` | unit 38/0 · e2e 133/0 under check and sanitize · check-data: NYC counts = DESIGN §13 = DuckDB, 5-run build, Manhattan + 3 places = DuckDB · step-14 7 ok (bench worst p99 51 ms at 668 million points) · VERIFY PASSED (30 min 26 s) |
+| 2026-11-01 | NOAA AIS January–May 2023 downloaded, imported and built for step 15 | `fetch-ais.sh` (scratchpad version), per day `unzip -p \| gpstiles import /dev/stdin`, `build` of the 151 `.pts`, `bench` | 151 zips, 45 GB · rows=1216355904 imported=1216355854 skipped_out_of_range=39 skipped_malformed=11 (16 min) · build: 10 runs, 149 s, peak 1.08 GB for 9.7 GB of points · bench: p99 1.4 ms at zoom 0, worst 20.7 ms (zoom 5) at 1.2 billion points |
+| 2026-11-01 | Deploy of step 13 (`fb1148b`) | `GPSTILES_PORT=8090 make deploy` | smoke test green, no rollback · 6 datasets (pid 77079) |
 | 2026-11-01 | Step 13 after both review rounds (Codex: 1 medium + 1 low, then 1 medium; Claude skeptic: 1 medium + 4 low, then 1 high + 3 low; all fixed): `make verify` | `make verify` | unit 38/0 · e2e 131/0 under check and sanitize · check-data as before · step-13: 2,757 tiles of 11 files = step 12's drawing, byte for byte; Porto p99 0.57 ms at zoom 0 (was 164) · VERIFY PASSED (19 min 8 s) |
 | 2026-11-01 | Deploy of step 12 (`1e22d25`); Porto added to the service | `GPSTILES_PORT=8090 make deploy`, `datasets.conf`, `launchctl kickstart -k`, `tools/deploy.sh smoke` | smoke test green, no rollback · 6 datasets listed and drawn (pid 86356) |
 | 2026-11-01 | Step 12 after both review rounds (Codex: 1 high + 1 medium, then 1 low; Claude skeptic: 1 medium + 6 low, then clean; all fixed): `make verify` | `make verify` | unit 37/0 · e2e 130/0 under check and sanitize · check-data: Porto counts = DESIGN §13 = csv + json, sample codes = two Python readers, 3 places, 1-run = 3-run build · step-12 7 ok · VERIFY PASSED (19 min 56 s) |

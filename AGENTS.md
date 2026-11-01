@@ -72,6 +72,7 @@ Picking up mid-step: trust the files and `git status`, not memory. Re-run `make 
 - GeoLife (step 10) is in `data/raw/geolife/`: the zip from download.microsoft.com and its `Geolife Trajectories 1.3/Data/` (18,670 `.plt` files, DESIGN §13).
 - The USGS earthquakes (step 11) are in `data/raw/usgs/`, fetched by `tools/fetch-usgs.py` (58 files, `MANIFEST.txt`).
 - The Porto taxis (step 12) are in `data/raw/porto/` (UCI's zip and `train.csv`, DESIGN §13).
+- The NYC taxis 2009–2010 (step 14) are in `data/raw/nyc-taxi/` (24 Parquet files); DuckDB, for them only, in `data/tools/venv/` (not part of the program or `make check`).
 - Datasets that need an account (Kaggle, GBIF, OpenSky): never create accounts yourself. Ask the developer, who registers with [email removed].
 
 ## Docs

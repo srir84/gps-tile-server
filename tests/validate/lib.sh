@@ -153,3 +153,39 @@ porto_gpt() {
     PORTO_COUNTS=$(sed -n 1p "$counts")
     PORTO_BUILD=$(sed -n 2p "$counts")
 }
+
+# NYC's yellow-taxi trips 2009–2010 (step 14): TLC's Parquet files, turned into `lon,lat` rows by tools/nyc-taxi.py,
+# which needs DuckDB in data/tools/venv.
+NYC_DATA="$ROOT/data/raw/nyc-taxi"
+NYC_PYTHON="$ROOT/data/tools/venv/bin/python"
+
+# Imports and builds NYC into build/validate/nyc-taxi.gpt (5.4 GB), kept while the files are the same. Sets NYC_GPT and
+# NYC_COUNTS. Needs $NYC_DATA's Parquet files and $NYC_PYTHON.
+nyc_gpt() {
+    NYC_GPT=$ROOT/build/validate/nyc-taxi.gpt
+    local pts=$ROOT/build/validate/nyc-taxi.pts counts=$ROOT/build/validate/nyc-taxi.counts
+    local key=$ROOT/build/validate/nyc-taxi.key now
+    # What the result depends on besides the program: the files, the converter, DuckDB's version and import's options.
+    now=$({ (cd "$NYC_DATA" && ls -lnT yellow_tripdata_20*.parquet); shasum -a 256 "$ROOT/tools/nyc-taxi.py";
+        "$NYC_PYTHON" -I -c 'import duckdb; print(duckdb.__version__)'; echo "--lon-col 1 --lat-col 2 --skip 1"; } |
+        shasum -a 256) || fail "can't list NYC's files"
+    if [ "$NYC_GPT" -nt "$ROOT/build/gpstiles" ] && [ "$counts" -nt "$ROOT/build/gpstiles" ] &&
+        [ "$(cat "$key" 2> /dev/null)" = "$now" ]; then
+        NYC_COUNTS=$(cat "$counts")
+        return 0
+    fi
+    mkdir -p "$ROOT/build/validate" || exit 1
+    rm -f "$NYC_GPT" "$counts" "$key"
+    "$NYC_PYTHON" -I "$ROOT/tools/nyc-taxi.py" "$NYC_DATA"/yellow_tripdata_20*.parquet |
+        "$ROOT/build/gpstiles" import --lon-col 1 --lat-col 2 --skip 1 -o "$pts" /dev/stdin > "$counts"
+    local status=("${PIPESTATUS[@]}")
+    if [ "${status[0]}" != 0 ] || [ "${status[1]}" != 0 ]; then
+        rm -f "$pts" "$counts" # a converter that stopped early leaves counts that look whole
+        fail "NYC import failed (nyc-taxi.py ${status[0]}, import ${status[1]})"
+    fi
+    "$ROOT/build/gpstiles" build --tmp "$ROOT/build/validate" -o "$NYC_GPT" "$pts" > /dev/null ||
+        { rm -f "$pts" "$counts"; fail "NYC build failed"; }
+    rm -f "$pts"
+    echo "$now" > "$key"
+    NYC_COUNTS=$(cat "$counts")
+}
