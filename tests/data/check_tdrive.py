@@ -1,5 +1,5 @@
 """make check-data (TESTING.md level 6): `gpstiles import` on all of T-Drive, checked three ways:
-the counts against DESIGN §13 and against tdrive_counts.awk, and every code against the Python
+the counts against DESIGN §13 and against row_counts.awk, and every code against the Python
 rules in tests/oracle/import_rules.py. Then `gpstiles build` of that .pts twice, with the default
 --mem and with --mem 1M (many runs): both files must be identical and equal, byte for byte, to the
 file tests/oracle/gpt_rules.py makes with its own sort and counts. Then `gpstiles info` and `count` on
@@ -58,7 +58,7 @@ def main():
             fail(f"gpstiles import exited {result.returncode}: {result.stderr.strip()}")
         ours = result.stdout.strip()
 
-        awk = subprocess.run(["awk", "-f", str(ROOT / "tests" / "data" / "tdrive_counts.awk"), *map(str, files)],
+        awk = subprocess.run(["awk", "-v", "LON=3", "-v", "LAT=4", "-f", str(ROOT / "tests" / "data" / "row_counts.awk"), *map(str, files)],
                              capture_output=True, text=True, env={**os.environ, "LC_ALL": "C"})
         if awk.returncode != 0:
             fail(f"awk exited {awk.returncode}: {awk.stderr.strip()}")

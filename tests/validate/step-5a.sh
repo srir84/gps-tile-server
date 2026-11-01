@@ -18,7 +18,7 @@ sample=$TDRIVE_SAMPLE_GPT
 
 # The sample's point count from awk (step 2's independent row rules), not from our own files.
 # shellcheck disable=SC2046 # the names have no spaces
-sample_awk=$(LC_ALL=C awk -f tests/data/tdrive_counts.awk $(ls data/raw/tdrive_txt/*.txt | sort | head -500) |
+sample_awk=$(LC_ALL=C awk -v LON=3 -v LAT=4 -f tests/data/row_counts.awk $(ls data/raw/tdrive_txt/*.txt | sort | head -500) |
     sed -n 's/.*imported=\([0-9]*\).*/\1/p')
 [ -n "$sample_awk" ] || fail "awk gave no count for the sample"
 

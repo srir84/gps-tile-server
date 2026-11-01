@@ -7,17 +7,18 @@ CODEX=${CODEX_BIN:-codex} # the tests swap in a fake codex
 
 step=${1:-}
 case $step in
-    [0-9] | [0-9][a-z]) ;;
+    [0-9] | [0-9][a-z] | [1-9][0-9]) ;;
     *)
-        echo "usage: tools/review.sh N   (a step from DESIGN §12.2, e.g. 1 or 3a)" >&2
+        echo "usage: tools/review.sh N   (a step from DESIGN §12.2 or §12.4, e.g. 1, 3a or 10)" >&2
         exit 2
         ;;
 esac
 
-design_rows=$(grep -E "^\| $step[ |]" docs/DESIGN.md)
-testing_row=$(grep -E "^\| $step \|" docs/TESTING.md)
+# Only the step tables: DESIGN §12 (build plan) and TESTING §9. Other tables have rows like "| 12 | header_size |".
+design_rows=$(sed -n '/^## 12\. /,/^## 13\. /p' docs/DESIGN.md | grep -E "^\| $step[ |]")
+testing_row=$(sed -n '/^## 9\. /,/^## 10\. /p' docs/TESTING.md | grep -E "^\| $step \|")
 if [ -z "$design_rows" ] || [ -z "$testing_row" ]; then
-    echo "review.sh: step $step has no rows in DESIGN §12.2 or TESTING §9" >&2
+    echo "review.sh: step $step has no rows in DESIGN §12.2/§12.4 or TESTING §9" >&2
     exit 2
 fi
 
@@ -72,7 +73,7 @@ Don't run make (the sandbox can't write build/). Reading files and git commands 
 The rules are in AGENTS.md. The design is docs/DESIGN.md, the test plan docs/TESTING.md.
 The full change for this step, new files included, is in $diff_file (base $base).
 
-What this step must build (DESIGN §12.2):
+What this step must build (DESIGN §12.2, or §12.4 for stage 2):
 $design_rows
 
 Tests this step must add (TESTING §9):

@@ -120,6 +120,42 @@ def test_header_lines_tab_delimiter_and_latitude_first():
         assert counts == dict(rows=6, imported=4, skipped_zero=2, skipped_out_of_range=0, skipped_malformed=0)
 
 
+def test_geolife_plt_layout_gives_its_known_counts_and_codes():
+    """catches: GeoLife's own layout read wrong (step 10): its 6 header lines counted as rows, latitude and longitude mixed up, or the glitch at latitude 400 kept"""
+    plt = FIXTURES / "geolife_small.plt"
+    with tempfile.TemporaryDirectory() as tmp:
+        counts = assert_matches_oracle(tmp, [plt, plt], cols=(2, 1), skip=6, extra=["--skip", "6"])
+        assert counts == dict(rows=24, imported=22, skipped_zero=0, skipped_out_of_range=2, skipped_malformed=0)
+        # One header line too few: the 6th header line, "0", is a row without a second column.
+        counts = assert_matches_oracle(tmp, [plt], cols=(2, 1), skip=5, extra=["--skip", "5"])
+        assert counts == dict(rows=13, imported=11, skipped_zero=0, skipped_out_of_range=1, skipped_malformed=1)
+        # The columns swapped: Beijing's longitude, 116, read as a latitude is past the map's edge.
+        counts = assert_matches_oracle(tmp, [plt], cols=(1, 2), skip=6, extra=["--skip", "6"])
+        assert counts == dict(rows=12, imported=0, skipped_zero=0, skipped_out_of_range=12, skipped_malformed=0)
+
+
+def test_row_counts_awk_gives_the_python_rules_counts():
+    """catches: tests/data/row_counts.awk drifting from DESIGN §8, the answer make check-data trusts for T-Drive and GeoLife: a row rule, an edge (the map's, 65,536 bytes), a number that overflows (macOS's awk then compares text), the columns or the header lines"""
+    with tempfile.TemporaryDirectory() as tmp:
+        edges = [b"1,x,180,85.05112877980659", b"1,x,-180,-85.05112877980659", b"1,x,0,85.0511287798066",
+                 b"1,x,180.0000001,0", b"1,x,1e999,0", b"1,x,-0,0", b"1,x,.5,1.", b"1,x,+1e1,-1E-1", b"",
+                 b"1,x,116.5,1e999", b"1,x,-1e999,39.9", b"1,x,1e-400,39.9", b"1,x,116.5,-1e999", b"1,x,1e-400,1e-400",
+                 b"1,x,116.5,39.9," + b"9" * (rules.MAX_LINE - 15), b"1,x,116.5,39.9," + b"9" * (rules.MAX_LINE - 14)]
+        cases = [("tdrive_small.txt", 3, 4, 0), ("bad_rows.txt", 3, 4, 0), ("geolife_small.plt", 2, 1, 6),
+                 ("geolife_small.plt", 2, 1, 5), ("geolife_small.plt", 1, 2, 6), ("edges.txt", 3, 4, 0),
+                 ("edges.txt", 3, 4, 1), ("long.txt", 3, 4, 0)]
+        write(tmp, "edges.txt", b"\r\n".join(edges))
+        # LF only: exactly 65,536 bytes is a row, one more is malformed.
+        write(tmp, "long.txt", b"\n".join([b"1,x,116.5,39.9," + b"9" * (rules.MAX_LINE - 15 + extra) for extra in (0, 1)]) + b"\n")
+        for name, lon, lat, skip in cases:
+            files = [FIXTURES / name if (FIXTURES / name).exists() else pathlib.Path(tmp) / name] * 2
+            awk = subprocess.run(["awk", "-v", f"LON={lon}", "-v", f"LAT={lat}", "-v", f"SKIP={skip}",
+                                  "-f", str(TESTS / "data" / "row_counts.awk"), *map(str, files)],
+                                 capture_output=True, text=True, env={**os.environ, "LC_ALL": "C"}, timeout=30)
+            counts, _ = rules.import_files(files, lon, lat, skip=skip)
+            assert awk.returncode == 0 and awk.stdout == rules.counts_line(counts) + "\n", (name, skip, awk, counts)
+
+
 def test_number_edges_follow_the_rules():
     """catches: the map edge refused, a value past it kept, "1e999" or "-0" mishandled, or a NUL byte hiding junk"""
     with tempfile.TemporaryDirectory() as tmp:

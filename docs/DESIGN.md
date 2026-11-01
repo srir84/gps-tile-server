@@ -16,7 +16,7 @@
 | **Language** | C11 + zlib. Map page: HTML + Leaflet |
 | **Runs on** | macOS laptop first, Linux later |
 | **First dataset** | T-Drive (Beijing taxis, ~10M points) |
-| **Status** | Design only. Nothing built yet |
+| **Status** | Stage 1 built (steps 0a–9, release v0.1.0, local only). Stage 2 (§12.4) in progress. `PROGRESS.md` has the details |
 | **Plan source** | `../../PROJECT_IDEAS.md` sections 8–10 |
 
 ---
@@ -580,6 +580,24 @@ flowchart LR
 
 </details>
 
+### 12.4 Stage 2 steps (GeoLife + USGS)
+
+The goal (`PROJECT_IDEAS.md` §8.5): a second file layout and points spread over the whole world work with **no code changes beyond import options**. Each stage also repeats the same checks: points land in the right place, the file's count equals the points imported, tile counts add up from one zoom to the next, build time and tile speed are recorded, and area count, export and API stay right.
+
+**In plain English**
+
+| Step | What we build | How we check it |
+|---|---|---|
+| 10 GeoLife | Reads Microsoft's GeoLife traces: 182 people, mostly in Beijing, walking, driving and biking. A second file layout (`.plt`: 6 header lines, latitude first), read with import options only. Real-data checks for it in `make check-data`. The review script takes two-digit steps | Counts match a separate tool (`awk`) and the dataset's own user guide · every point the Python rules read lands on the same spot · a tile = its 4 smaller tiles added up = a slow count · known places hold the points Python finds there · the map shows the traces on Beijing's streets |
+| 11 Worldwide + report | USGS earthquakes since 1900, from USGS's website through a download tool that pages through its 20,000-row limit and checks each period against USGS's own count. Points over the whole globe: both hemispheres, the 180° line, near the poles. Then the stage 2 report: numbers for every dataset | Every period's rows = USGS's count · import counts = `awk` · quakes past 85.05° are counted and skipped · a box across the 180° line counts the same as Python · the world map shows the Pacific Ring of Fire · build time and tile speed for every dataset |
+
+**Exact checks (commands and expected output)**
+
+| Step | Builds | You validate by | Expected result |
+|---|---|---|---|
+| 10 | `tests/data/row_counts.awk` (DESIGN §8's rules, any columns; not for data with NUL bytes), `tests/data/check_geolife.py` in `make check-data`, fixture `geolife_small.plt`, `tools/review.sh` takes steps 10–99 | In `data/raw/geolife/Geolife Trajectories 1.3/Data`: `gpstiles import --lat-col 1 --lon-col 2 --skip 6 -o "$TMPDIR/geolife.pts" */Trajectory/*.plt` · the same `awk` count · `build`, `info`, `count` Beijing's zoom-6 tile and its 4 children · the page at Beijing, zoom 11 and 16 | `rows=24876978 imported=24876977 skipped_zero=0 skipped_out_of_range=1 skipped_malformed=0` = awk (§13) · `points=24876977` · tile = sum of its children = slow count · traces on the streets, as in the user guide's Figure 1 |
+| 11 | `tools/fetch-usgs.py`, `tests/data/check_usgs.py` in `make check-data`, the stage 2 report | `tools/fetch-usgs.py data/raw/usgs` · `gpstiles import --lat-col 2 --lon-col 3 --skip 1` · build · serve · the count API for a box across the 180° line (Fiji–Tonga) and one around Japan · a box drawn across the 180° line on the page · the world map | Every period = USGS's count (`MANIFEST.txt`) · counts = awk · box counts = Python's slow count · the drawn box = its two halves added up · the Ring of Fire · bench for every dataset |
+
 ---
 
 ## 13. Validation facts (known answers)
@@ -594,6 +612,12 @@ flowchart LR
 | Valid points | 10,064,891 | rows − zero − out of range |
 | Beijing (116.391, 39.907) at zoom 10 | tile `10/843/388` | OpenStreetMap formula |
 | New York (−74.006, 40.7128) at zoom 12 | tile `12/1205/1540` | OpenStreetMap formula |
+| GeoLife archive | `Geolife Trajectories 1.3.zip`: 313,164,406 bytes, SHA-256 `1107c5ac064d0a23c8d021a8736a77e53abc75b227062e6260342c6a8d86bdb6` | download.microsoft.com, 2026-11-01 |
+| GeoLife files | 18,670 `.plt` in 182 user folders | Counted after unzip · the user guide's Figure 7 |
+| GeoLife rows | 24,876,978 | `awk` · the user guide's Figure 7 ("Number of points") |
+| GeoLife rows out of range | 1: `020/Trajectory/20110911000506.plt` line 6782, latitude 400.166666666667 | `awk` |
+| GeoLife rows at (0,0), malformed | 0, 0 | `awk` |
+| GeoLife valid points | 24,876,977 | rows − out of range |
 
 ---
 

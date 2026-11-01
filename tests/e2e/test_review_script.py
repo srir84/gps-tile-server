@@ -28,8 +28,12 @@ summary = "" if (here / "no-summary").exists() else "SUMMARY: high=0 medium=1 lo
 pathlib.Path(out).write_text("1. medium src/new.c:1 example finding\\n" + summary)
 """
 
-DESIGN = "| 0b Loop tools | plain-English row |\n| 0b | `make verify` exact-check row | x | y |\n| 1 | geo | x | y |\n"
-TESTING = "| 0b | none | failing test caught by every guard |\n| 1 | geo tests | x |\n"
+# Rows are read from DESIGN §12 and TESTING §9 only: the other tables' rows (here "| 12 |") are not steps.
+DESIGN = ("## 9. Interfaces\n| 12 | header_size | uint32 | 256 |\n## 12. Build plan\n"
+          "| 0b Loop tools | plain-English row |\n| 0b | `make verify` exact-check row | x | y |\n| 1 | geo | x | y |\n"
+          "| 10 GeoLife | geolife plain row |\n| 10 | geolife exact-check row | x | y |\n## 13. Facts\n| 12 | a fact |\n")
+TESTING = ("## 9. Tests added in each step\n| 0b | none | failing test caught by every guard |\n| 1 | geo tests | x |\n"
+           "| 10 | geolife tests | x |\n## 10. Other\n| 12 | not a step |\n")
 
 
 def clean_env(**extra):
@@ -44,14 +48,14 @@ def clean_env(**extra):
 class Repo:
     """A temp repo with one commit, then a step's changes: an edit, a new file, builder notes."""
 
-    def __init__(self, tmp):
+    def __init__(self, tmp, docs=None):
         self.root = pathlib.Path(tmp) / "repo"
         self.fake = pathlib.Path(tmp) / "fake"
         self.fake.mkdir()
         (self.fake / "codex").write_text(FAKE_CODEX.format(python=sys.executable))
         (self.fake / "codex").chmod(0o755)
         files = {"tools/review.sh": None, "docs/DESIGN.md": DESIGN, "docs/TESTING.md": TESTING,
-                 "AGENTS.md": "rules\n", "PROGRESS.md": "status\n", ".gitignore": ".review/\n"}
+                 "AGENTS.md": "rules\n", "PROGRESS.md": "status\n", ".gitignore": ".review/\n", **(docs or {})}
         for path, text in files.items():
             (self.root / path).parent.mkdir(parents=True, exist_ok=True)
             if text is None:
@@ -158,6 +162,40 @@ def test_bad_or_unknown_step_names_are_refused():
             result = repo.review(step)
             assert result.returncode == 2, (step, result.returncode)
         assert not (repo.fake / "args.json").exists(), "codex ran for a bad step name"
+
+
+def test_two_digit_steps_get_their_own_rows():
+    """catches: stage 2's steps (10, 11) refused as bad names, or step 1's review given step 10's rows (or the reverse)"""
+    with tempfile.TemporaryDirectory() as tmp:
+        repo = Repo(tmp)
+        result = repo.review("10")
+        assert result.returncode == 0, result.stderr
+        prompt = (repo.fake / "prompt.txt").read_text()
+        assert "geolife plain row" in prompt and "geolife exact-check row" in prompt and "geolife tests" in prompt, prompt
+        assert "| 1 | geo |" not in prompt and "geo tests" not in prompt, "step 1's rows leaked into step 10's review"
+        assert (repo.root / ".review" / "step-10" / "round-1.md").exists()
+        result = repo.review("1")
+        assert result.returncode == 0, result.stderr
+        assert "geolife" not in (repo.fake / "prompt.txt").read_text(), "step 10's rows leaked into step 1's review"
+        for step in ["100", "05", "1x0", "12"]:  # 12: rows only outside the step tables
+            (repo.fake / "args.json").unlink(missing_ok=True)
+            assert repo.review(step).returncode == 2, step
+            assert not (repo.fake / "args.json").exists(), f"codex ran for step {step}"
+
+
+def test_the_real_docs_give_each_step_only_its_step_table_rows():
+    """catches: a review given rows of other tables in the real DESIGN or TESTING (the .gpt header's "| 12 | header_size |", §8's "| 21 empty files |"), or a number that only such rows match taken as a step (Claude skeptic, step 10)"""
+    real = pathlib.Path(__file__).resolve().parents[2] / "docs"
+    with tempfile.TemporaryDirectory() as tmp:
+        repo = Repo(tmp, docs={"docs/DESIGN.md": (real / "DESIGN.md").read_text(),
+                               "docs/TESTING.md": (real / "TESTING.md").read_text()})
+        for step in ["12", "16", "21", "24"]:
+            assert repo.review(step).returncode == 2, step
+        for step, words in [("8", "Export"), ("10", "GeoLife")]:
+            assert repo.review(step).returncode == 0, step
+            prompt = (repo.fake / "prompt.txt").read_text()
+            rows = prompt.split("(DESIGN §12.2, or §12.4 for stage 2):\n")[1].split("\n\nTests this step")[0].splitlines()
+            assert len(rows) == 2 and words in rows[0] and "uint32" not in prompt, (step, rows)
 
 
 def test_reply_without_summary_does_not_use_up_a_round():

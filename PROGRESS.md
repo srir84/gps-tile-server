@@ -6,10 +6,12 @@ The handoff file. Read it first. Update it at the start and end of every step.
 
 | | |
 |---|---|
-| **Current step** | Stage 1 complete (steps 0a–9) |
+| **Current step** | 10: GeoLife (stage 2, DESIGN §12.4) |
 | **Status** | approved |
-| **Next action** | The developer's open decisions below (license first). Stage 2 (DESIGN §12.3) starts only when the developer says so. |
+| **Next action** | Deploy step 10 (port 8090) and add `geolife.gpt` to the service. Then step 11: USGS worldwide (the data is downloaded), the opening view rule B, the stage 2 report. |
 | **Blocked on** | nothing |
+
+Stage 2 approval: on 2026-11-01 the developer said "continue with stage implementation make sure everything works all tests pass", so stage 2 runs the same way as stage 1.
 
 Approval: on 2026-10-31 the developer set the goal "complete each step … do not stop until the full project is completed", with Codex (gpt-6-astra) and a Claude Opus skeptic reviewing every step. Each step is committed after both reviews and a green `make verify`. Deploy is local only (this Mac); nothing is published.
 
@@ -33,6 +35,13 @@ Status values: `not started` → `in progress` → `waiting for review` → `app
 | 8 | Export | approved | 2026-10-31 | `820f438` | `docs/steps/step-8.md` |
 | 9 | Stage 1 report + release | approved | 2026-10-31 | `7f21698` | `docs/steps/step-9.md` |
 
+## Step log (stage 2: GeoLife + USGS, DESIGN §12.4)
+
+| Step | Name | Status | Date | Commit | Review |
+|---|---|---|---|---|---|
+| 10 | GeoLife: a second file layout | approved | 2026-11-01 | | `docs/steps/step-10.md` |
+| 11 | Worldwide: USGS earthquakes + stage 2 report | not started | | | |
+
 ## Done before step 0 (planning)
 
 | Item | Where |
@@ -48,6 +57,9 @@ Status values: `not started` → `in progress` → `waiting for review` → `app
 
 | Date | What | Command | Result |
 |---|---|---|---|
+| 2026-11-01 | Step 10 after both review rounds (Codex: 1 medium, then clean; Claude skeptic: 2 medium + 6 low, all fixed, then clean): `make verify` | `make verify` | unit 33/0 · e2e 123/0 under check and sanitize · check-data: T-Drive as before, GeoLife counts = DESIGN §13 = awk, sample codes = Python, 4 places = Python · step-10 7 ok · VERIFY PASSED (13 min 55 s) |
+| 2026-11-01 | USGS earthquakes downloaded for step 11 | `fetch-usgs.py data/raw/usgs` (the step-11 tool, from the builder's scratchpad) | 58 files, 4,771,181 rows, each period = USGS's own count (`MANIFEST.txt`), no id twice, 834 MB · `awk` and `gpstiles import`: imported=4770607 skipped_zero=9 skipped_out_of_range=565 (all north of 85.05°) |
+| 2026-10-31 | Third local dataset, for English map labels (developer's choice): NYC Uber pickups, April–September 2014, FiveThirtyEight's public copy (`github.com/fivethirtyeight/uber-tlc-foil-response`, `uber-trip-data/uber-raw-data-{apr..sep}14.csv`, 6 files, 209,715,627 bytes) in `data/raw/uber-nyc-2014/` | `gpstiles import --lon-col 3 --lat-col 2 --skip 1`, `build`, `info`; `awk` over the CSVs; the live count API | rows 4,534,327 = awk, all kept (0 at 0,0, 0 out of range, 0 malformed) · `uber-nyc-2014.gpt` 36,274,872 bytes, bounds = awk's min/max · JFK box `-73.83005,40.62005,-73.74005,40.67005`: 107,680 = awk · added to `datasets.conf`, service restarted: smoke test green, 3 datasets · the page in Chrome: English street names, 30/30 base tiles |
 | 2026-10-31 | Deploy fix: `make undeploy` now also removes the start script `serve.sh` (it kept the old port, so the deploy's port guard refused every move, even after undeploy) | `make deploy-test` | new scenario 15 (undeploy, then a deploy on another port answers there) · DEPLOY-TEST PASSED · break P1 (the old undeploy) caught: `a deploy on another port after undeploy: … installed on another port` |
 | 2026-10-31 | Service moved to port 8090 (developer's choice: a chat app of theirs uses 8080, and Chrome kept that app's page for 127.0.0.1:8080) | `make undeploy`, the old `serve.sh` removed by hand, `GPSTILES_PORT=8090 make deploy` | smoke test green on http://127.0.0.1:8090/ (pid 95803) · nothing listening on 8080 |
 | 2026-10-31 | Release v0.1.0, local only | `make release VERSION=0.1.0`, `shasum -a 256 -c`, `git tag -n` | smoke test green on the unpacked package · `dist/gpstiles-0.1.0-macos-arm64.tar.gz` (90,618 bytes: `gpstiles`, `README.md`, `LEAFLET-LICENSE`, owned by root; links only libSystem and libz; built for macOS 13.0) + `.sha256`: OK · annotated tag `v0.1.0` on `7f21698` · no git remote: nothing pushed or uploaded |
@@ -79,6 +91,7 @@ Status values: `not started` → `in progress` → `waiting for review` → `app
 |---|---|---|
 | ~~DESIGN §9.4, §9.3, §8 and TESTING §7 wording~~ | — | Applied in step 3b (see `docs/steps/step-3b.md` Decisions) |
 | Store time per point? | Before stage 4 | Changes the `.gpt` format. DESIGN section 14 |
+| ~~Opening view for spread-out data (DESIGN §9.3)~~ | — | Developer chose B on 2026-11-01: drop 5 % of the points at each end instead of 1 % (GeoLife opened on most of the northern world). Applied in step 11. See `docs/steps/step-10.md` Decisions |
 | Base map provider for the page | Developer to confirm | Step 6 uses OpenStreetMap's standard tiles, darkened by CSS (CARTO's dark tiles need an account). A one-line change in `www/app.js` plus the CSP |
 | Box rule wording (DESIGN §9.2) | Developer to confirm | Longitude 180 as a box edge = the world's last unit; bbox at most 127 characters, each number at most 63. See `docs/steps/step-7.md` Decisions |
 | A total time limit on exports | Developer to confirm | None in step 8, on purpose: a client that keeps reading is served; one that pauses 3 × timeout is let go. See `docs/steps/step-8.md` Decisions |

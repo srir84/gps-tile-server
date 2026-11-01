@@ -71,3 +71,31 @@ tdrive_sample_gpt() {
         fail "tdrive-sample import failed"
     "$ROOT/build/gpstiles" build -o "$TDRIVE_SAMPLE_GPT" "$pts" > /dev/null || fail "tdrive-sample build failed"
 }
+
+# GeoLife's data folder (step 10): 182 user folders, each with Trajectory/*.plt.
+GEOLIFE_DATA="$ROOT/data/raw/geolife/Geolife Trajectories 1.3/Data"
+
+# Imports and builds GeoLife (all 18,670 .plt files: 6 header lines, latitude first) into build/validate/ the same
+# way. Sets GEOLIFE_PTS, GEOLIFE_GPT and GEOLIFE_COUNTS (the line import printed). Needs $GEOLIFE_DATA.
+geolife_gpt() {
+    GEOLIFE_PTS=$ROOT/build/validate/geolife.pts
+    GEOLIFE_GPT=$ROOT/build/validate/geolife.gpt
+    local counts=$ROOT/build/validate/geolife.counts key=$ROOT/build/validate/geolife.key
+    local options="--lat-col 1 --lon-col 2 --skip 6" now
+    # What the result depends on besides the program: the options, and every file's name, size and time.
+    now=$(cd "$GEOLIFE_DATA" && { echo "$options"; ls -lnT */Trajectory/*.plt; } | shasum -a 256) || fail "can't list GeoLife"
+    if [ "$GEOLIFE_GPT" -nt "$ROOT/build/gpstiles" ] && [ "$GEOLIFE_PTS" -nt "$ROOT/build/gpstiles" ] &&
+        [ "$counts" -nt "$ROOT/build/gpstiles" ] && [ "$(cat "$key" 2> /dev/null)" = "$now" ]; then
+        GEOLIFE_COUNTS=$(cat "$counts")
+        return 0
+    fi
+    mkdir -p "$ROOT/build/validate" || exit 1
+    rm -f "$GEOLIFE_PTS" "$GEOLIFE_GPT" "$counts" "$key"
+    # Relative names, from inside the data folder: 18,670 full paths would pass the argument size limit.
+    # shellcheck disable=SC2086 # $options is several words
+    (cd "$GEOLIFE_DATA" && "$ROOT/build/gpstiles" import $options -o "$GEOLIFE_PTS" */Trajectory/*.plt > "$counts") ||
+        fail "GeoLife import failed"
+    "$ROOT/build/gpstiles" build -o "$GEOLIFE_GPT" "$GEOLIFE_PTS" > /dev/null || fail "GeoLife build failed"
+    echo "$now" > "$key"
+    GEOLIFE_COUNTS=$(cat "$counts")
+}

@@ -20,7 +20,7 @@ Use only these to build, test, review and deploy. Build and test commands exist 
 | `make` | Build `build/gpstiles` |
 | `make check` | Build + unit, random-input, bad-input and end-to-end tests (seconds, no `data/` needed) |
 | `make sanitize` | Same tests under AddressSanitizer + UndefinedBehaviorSanitizer |
-| `make check-data` | Real T-Drive checks against `awk` / Python answers (minutes, needs `data/`) |
+| `make check-data` | Real-data checks (T-Drive, GeoLife, …) against `awk` / Python answers (minutes, needs `data/`; each dataset SKIPPED without its files) |
 | `make verify` (0b) | check + sanitize + check-data (if `data/` exists) + every step's `tests/validate/step-N.sh` |
 | `tools/review.sh N` (0b) | Codex reviews step N, read-only, fresh context → `.review/step-N/round-K.md` (max 2 rounds) |
 | `make hooks` (0b) | Install the pre-commit hook (check + sanitize on the staged files) |
@@ -33,7 +33,7 @@ Use only these to build, test, review and deploy. Build and test commands exist 
 ## Workflow (every step)
 1. Read `PROGRESS.md`. Work only on the step it names.
 2. Set the step to `in progress` in `PROGRESS.md`.
-3. Build the step as `docs/DESIGN.md` section 12.2 describes. Nothing from later steps.
+3. Build the step as `docs/DESIGN.md` section 12.2 (stage 1) or 12.4 (stage 2) describes. Nothing from later steps.
 4. Verify: `make verify` green (step 0a: `make check` + `make sanitize`), plus the bug-catching proof (see "Definition of done").
 5. Review: `tools/review.sh N` (in step 0a, before the script exists: `codex exec -s read-only` by hand). Fix each finding or write why not. At most 2 rounds.
 6. Validate: run the step's validation for real (CLI output, headless Chrome screenshot for steps 4 and 6) and look at the result.
@@ -69,6 +69,7 @@ Picking up mid-step: trust the files and `git status`, not memory. Re-run `make 
 ## Data
 - `data/` is never committed. Raw downloads go in `data/raw/`; generated `.pts` / `.gpt` files go in `data/build/`.
 - T-Drive is already downloaded to `data/raw/tdrive/` (zips) and `data/raw/tdrive_txt/` (8,911 text files).
+- GeoLife (step 10) is in `data/raw/geolife/`: the zip from download.microsoft.com and its `Geolife Trajectories 1.3/Data/` (18,670 `.plt` files, DESIGN §13).
 - Datasets that need an account (Kaggle, GBIF, OpenSky): never create accounts yourself. Ask the developer, who registers with [email removed].
 
 ## Docs

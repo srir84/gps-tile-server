@@ -125,7 +125,7 @@ tests/
 │   ├── test_stop_gate.py     tools/stop-gate.sh with a fake check                        (step 0b)
 │   ├── test_review_script.py tools/review.sh with a fake codex                           (step 0b)
 │   ├── test_where.py         `gpstiles where` vs places.csv and the OSM formula, bad input (step 1)
-│   ├── test_import.py        `gpstiles import` vs the fixtures and oracle/import_rules.py, bad input (step 2)
+│   ├── test_import.py        `gpstiles import` vs the fixtures and oracle/import_rules.py, bad input (step 2), GeoLife's layout (step 10)
 │   ├── test_build.py         `gpstiles build` vs oracle/gpt_rules.py, big and tiny --mem, file errors, killed builds (step 3a)
 │   ├── test_info_count.py    `gpstiles info` / `count` vs oracle/gpt_rules.py and slow counts, broken_*.gpt (step 3b)
 │   ├── test_render.py        `gpstiles render`: PNGs decoded by oracle/tile_rules.py, pixel by pixel (step 4)
@@ -141,7 +141,9 @@ tests/
 │   └── step-N.sh        each step's validation (§12.4): step-0a.sh, step-0b.sh, ...   (step 0b+)
 ├── data/
 │   ├── check_tdrive.py  level 6: real-data checks (`make check-data`): import (step 2), build (step 3a), info + count (step 3b), render (step 4)
-│   └── tdrive_counts.awk  the row rules in awk: independent T-Drive counts            (step 2)
+│   ├── check_geolife.py the same for GeoLife: counts = awk = DESIGN §13, codes = Python, tiles add up, known places (step 10)
+│   ├── check_usgs.py    the same for the USGS earthquakes, worldwide (step 11)
+│   └── row_counts.awk   the row rules in awk, any columns: independent counts           (step 2; any columns from step 10)
 ├── oracle/
 │   └── *.py             independent answers: slow counts, plain sorts, PNG decoding
 └── fixtures/
@@ -161,6 +163,8 @@ tests/
 | Tile picture | Python decodes the PNG (`zlib`) and checks pixel colors and the transparent pixels |
 | Row counts in an export | Python reads the CSV and checks each point is inside the box |
 | Known T-Drive numbers | `DESIGN.md` §13 |
+| GeoLife's number of points | its own user guide (Figure 7), and `awk` |
+| USGS rows per period | USGS's own count service, asked for each period by `tools/fetch-usgs.py` (`MANIFEST.txt`) |
 
 ---
 
@@ -175,6 +179,7 @@ tests/
 | `tiny.gpt` | A few hundred points built by the test | Slow counts per square | 3b |
 | `broken_*.gpt` | Wrong label, cut short, size mismatch | Refused with a clear message | 3b |
 | `two_datasets/` | Two tiny `.gpt` files | Each listed with its own count | 5a |
+| `geolife_small.plt` | GeoLife's real layout with made-up places near Beijing: the 6 header lines, CRLF, latitude first, an altitude of -777, and a latitude of 400 as in the real data | 12 rows, 11 kept, 1 out of range | 10 |
 
 ---
 
@@ -209,6 +214,8 @@ At least 2 deliberate breaks per step from step 1 on. Steps 0a and 0b use a setu
 | 7 | Box count = slow count for random boxes, incl. boxes on square edges and pixel-sized boxes (hover) | West > east, NaN, outside the world → 400 |
 | 8 | Export rows = box count · every row inside the box | Row limit respected · client disconnects halfway → server fine |
 | 9 | `bench` records speed (not pass/fail) | `make release`: the unpacked package passes the smoke test on its own |
+| 10 | `geolife_small.plt` (the real layout: 6 header lines, CRLF, latitude first, the real glitch at latitude 400) → known counts and codes · `row_counts.awk` gives the Python rules' counts on every fixture | One header line too few (`--skip 5`) → that line is a malformed row · the columns swapped → no point kept · `tools/review.sh 10` runs with its own rows only, `100` and `05` are refused |
+| 11 | `fetch-usgs.py` against a fake USGS: pages joined with no row lost or doubled where a page ends (several quakes at the last row's time), each period = the fake's count | A server error retried, then a clean failure that leaves no half-written file · a period whose rows ≠ its count refused · an empty period · an unexpected header refused |
 
 ---
 

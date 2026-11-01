@@ -67,18 +67,19 @@ check: $(BIN) $(UNIT_BIN) $(SELF_BIN)
 sanitize:
 	@$(MAKE) --no-print-directory check B=build/san MODE_FLAGS="$(SANITIZE_FLAGS)"
 
-# Real T-Drive checks against awk and Python (TESTING.md level 6). SKIPPED without data/.
+# Real-data checks against awk and Python (TESTING.md level 6), one script per dataset. Each prints SKIPPED without
+# its data in data/raw/.
 check-data: $(BIN)
 	@GPSTILES_BIN=$(BIN) $(PYTHON) -I -B tests/data/check_tdrive.py
+	@GPSTILES_BIN="$(CURDIR)/$(BIN)" $(PYTHON) -I -B tests/data/check_geolife.py
 
-# Everything, in order, stopping at the first red part (TESTING.md §12.1).
-VALIDATE := $(sort $(wildcard tests/validate/step-*.sh))
+# Everything, in order, stopping at the first red part (TESTING.md §12.1). The steps' scripts in step order (1, 2, …, 10).
 
 verify:
 	@$(MAKE) --no-print-directory check || { echo "VERIFY FAILED at: make check"; exit 1; }
 	@$(MAKE) --no-print-directory sanitize || { echo "VERIFY FAILED at: make sanitize"; exit 1; }
 	@$(MAKE) --no-print-directory check-data || { echo "VERIFY FAILED at: make check-data"; exit 1; }
-	@for script in $(VALIDATE); do \
+	@for script in $$(ls tests/validate/step-*.sh | sort -t- -k2n); do \
 		echo "--- $$script"; \
 		bash "$$script" || { echo "VERIFY FAILED at: $$script"; exit 1; }; \
 	done
