@@ -220,6 +220,7 @@ At least 2 deliberate breaks per step from step 1 on. Steps 0a and 0b use a setu
 | 10 | `geolife_small.plt` (the real layout: 6 header lines, CRLF, latitude first, the real glitch at latitude 400) → known counts and codes · `row_counts.awk` gives the Python rules' counts on every fixture | One header line too few (`--skip 5`) → that line is a malformed row · the columns swapped → no point kept · `tools/review.sh 10` runs with its own rows only, `100` and `05` are refused |
 | 11 | `fetch-usgs.py` against a fake USGS: pages joined with no row lost or doubled where a page ends (several quakes at the last row's time), each period = the fake's count | A server error retried, then a clean failure that leaves no half-written file · a period whose rows ≠ its count refused · an empty period · an unexpected header refused |
 | 12 | `porto_small.csv` (Porto's layout: quoted fields, an empty trip, a trip with a point at (0,0) and one off the map) → known counts and codes = the Python rules (their own CSV and list reader) · random polylines = the Python rules | Broken lists (unclosed, a missing number, a trailing comma, letters, 3 numbers in a pair), an unclosed quote, a row over 1,000,000 bytes → malformed rows, nothing of them imported · `--polyline` with `--lon-col` refused |
+| 13 | Random dense tiles (clusters, repeats, every zoom 0–24): the new pixel counts = counting point by point · the old render tests (Python pixel counts) unchanged | A tile with one point, an empty tile, a whole tile in one pixel |
 
 ---
 

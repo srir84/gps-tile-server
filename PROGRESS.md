@@ -6,9 +6,9 @@ The handoff file. Read it first. Update it at the start and end of every step.
 
 | | |
 |---|---|
-| **Current step** | 12: Porto taxis (stage 3, DESIGN §12.5) |
+| **Current step** | 13: Fast tiles (stage 4, DESIGN §12.6) |
 | **Status** | approved |
-| **Next action** | Deploy step 12 and add `porto.gpt`. Then stage 4: step 13 (fast zoomed-out tiles), step 14 (NYC taxis 2009–2010), step 15 (a billion points: NOAA AIS) + report. Then stage 3 (Porto taxis), as the developer set on 2026-11-01: "proceed with all stages do not stop until all stages are complete". |
+| **Next action** | Step 13: `render_count` by splitting dense cells, verify, both reviews, commit, deploy. Then step 14 (NYC taxis 2009–2010), step 15 (a billion points: NOAA AIS) + stage 4 report. Then stage 5, as the developer set on 2026-11-01: "proceed with all stages do not stop until all stages are complete". |
 | **Blocked on** | nothing |
 
 Stage 2 approval: on 2026-11-01 the developer said "continue with stage implementation make sure everything works all tests pass", so stage 2 runs the same way as stage 1.
@@ -46,7 +46,15 @@ Status values: `not started` → `in progress` → `waiting for review` → `app
 
 | Step | Name | Status | Date | Commit | Review |
 |---|---|---|---|---|---|
-| 12 | Porto taxis: polylines + stage 3 report | approved | 2026-11-01 | | `docs/steps/step-12.md` |
+| 12 | Porto taxis: polylines + stage 3 report | approved | 2026-11-01 | `1e22d25` | `docs/steps/step-12.md` |
+
+## Step log (stage 4: over a billion points, DESIGN §12.6)
+
+| Step | Name | Status | Date | Commit | Review |
+|---|---|---|---|---|---|
+| 13 | Fast tiles | approved | 2026-11-01 | | `docs/steps/step-13.md` |
+| 14 | NYC taxis 2009–2010 | not started | | | |
+| 15 | A billion points (NOAA AIS) + stage 4 report | not started | | | |
 
 ## Done before step 0 (planning)
 
@@ -63,6 +71,8 @@ Status values: `not started` → `in progress` → `waiting for review` → `app
 
 | Date | What | Command | Result |
 |---|---|---|---|
+| 2026-11-01 | Step 13 after both review rounds (Codex: 1 medium + 1 low, then 1 medium; Claude skeptic: 1 medium + 4 low, then 1 high + 3 low; all fixed): `make verify` | `make verify` | unit 38/0 · e2e 131/0 under check and sanitize · check-data as before · step-13: 2,757 tiles of 11 files = step 12's drawing, byte for byte; Porto p99 0.57 ms at zoom 0 (was 164) · VERIFY PASSED (19 min 8 s) |
+| 2026-11-01 | Deploy of step 12 (`1e22d25`); Porto added to the service | `GPSTILES_PORT=8090 make deploy`, `datasets.conf`, `launchctl kickstart -k`, `tools/deploy.sh smoke` | smoke test green, no rollback · 6 datasets listed and drawn (pid 86356) |
 | 2026-11-01 | Step 12 after both review rounds (Codex: 1 high + 1 medium, then 1 low; Claude skeptic: 1 medium + 6 low, then clean; all fixed): `make verify` | `make verify` | unit 37/0 · e2e 130/0 under check and sanitize · check-data: Porto counts = DESIGN §13 = csv + json, sample codes = two Python readers, 3 places, 1-run = 3-run build · step-12 7 ok · VERIFY PASSED (19 min 56 s) |
 | 2026-11-01 | NYC taxis 2009–2010 downloaded for stage 4 (TLC, no account) and counted by DuckDB | `curl` (24 files, each size = the server's), DuckDB 2.0.0 in `data/tools/venv` | 24 Parquet files, 11 GB · TLC's files from 2011 on hold zone numbers, not places · 339,897,217 trips → 679,794,434 pickup and dropoff points: 668,475,278 on the map, 11,315,804 at (0,0), 3,242 off the map, 110 without a place |
 | 2026-11-01 | Deploy of step 11 (`f73eb0f`); every `.gpt` rebuilt (the 5 % view); the earthquakes added | `GPSTILES_PORT=8090 make deploy`, `gpstiles build` ×5, `datasets.conf`, `launchctl kickstart -k`, `tools/deploy.sh smoke` | smoke test green, no rollback · 5 datasets listed and drawn (pid 97046) · views: tdrive 116.17,39.73–116.96,40.21 · geolife 108.47,30.85–117.97,40.37 · earthquakes -162.09,-8.04–127.21,63.11 |
@@ -102,7 +112,7 @@ Status values: `not started` → `in progress` → `waiting for review` → `app
 | Decision | Needed by | Notes |
 |---|---|---|
 | ~~DESIGN §9.4, §9.3, §8 and TESTING §7 wording~~ | — | Applied in step 3b (see `docs/steps/step-3b.md` Decisions) |
-| Store time per point? | Before stage 4 | Changes the `.gpt` format. DESIGN section 14 |
+| Store time per point? | Developer may reverse | Decided "not stored" by the builder on 2026-11-01 to keep going under "proceed with all stages" (DESIGN §12.6, §14). Storing it changes the `.gpt` format |
 | ~~Opening view for spread-out data (DESIGN §9.3)~~ | — | Developer chose B on 2026-11-01: drop 5 % of the points at each end instead of 1 % (GeoLife opened on most of the northern world). Applied in step 11 (`docs/steps/step-11.md`) |
 | Base map provider for the page | Developer to confirm | Step 6 uses OpenStreetMap's standard tiles, darkened by CSS (CARTO's dark tiles need an account). A one-line change in `www/app.js` plus the CSP |
 | Box rule wording (DESIGN §9.2) | Developer to confirm | Longitude 180 as a box edge = the world's last unit; bbox at most 127 characters, each number at most 63. See `docs/steps/step-7.md` Decisions |

@@ -14,17 +14,64 @@ static const unsigned char STOPS[5][3] = {
     {0x8c, 0x29, 0x81}, {0xb7, 0x37, 0x79}, {0xde, 0x49, 0x68}, {0xfe, 0x9f, 0x6d}, {0xfc, 0xfd, 0xbf},
 };
 
+/* A cell with more points than this per pixel is cut into quarters; a sparser one is walked point by point. */
+#define SPLIT_POINTS_PER_PIXEL 4
+
+/* The first index in [lo, hi) whose code is at least `value` (the codes are sorted). */
+static uint64_t first_at_least(const struct tilefile *tf, uint64_t lo, uint64_t hi, uint64_t value)
+{
+    while (lo < hi) {
+        uint64_t mid = lo + (hi - lo) / 2;
+        if (tilefile_code(tf, mid) < value)
+            lo = mid + 1;
+        else
+            hi = mid;
+    }
+    return lo;
+}
+
+/* Counts the points [first, end) of one square cell of the tile into counts: `depth` levels below the tile (its side
+ * 256 >> depth pixels), (px, py) its top-left pixel, `start` its first code (its points' codes are the 4^(32 - zoom -
+ * depth) codes from start on). A one-pixel cell's count is its slice's length. A dense cell is cut into its 4
+ * quarters, 4 consecutive slices in Z order ((0,0), (1,0), (0,1), (1,1)) found by binary search, so the time grows
+ * with the pixels, not the points. A sparse cell is walked point by point. */
+static void count_cell(const struct tilefile *tf, unsigned zoom, uint64_t first, uint64_t end, unsigned depth,
+                       unsigned px, unsigned py, uint64_t start, uint64_t counts[RENDER_PIXELS])
+{
+    uint64_t n = end - first;
+    unsigned side = RENDER_SIDE >> depth;
+    if (n == 0)
+        return;
+    if (side == 1) {
+        counts[py << 8 | px] += n; /* 64-bit: billions of points fit */
+        return;
+    }
+    if (n <= (uint64_t)side * side * SPLIT_POINTS_PER_PIXEL) {
+        unsigned shift = 24 - zoom; /* a pixel is 2^(32 - zoom - 8) world units wide */
+        for (uint64_t i = first; i < end; i++) {
+            uint32_t wx, wy;
+            geo_split(tilefile_code(tf, i), &wx, &wy);
+            counts[((wy >> shift) & 0xFF) << 8 | ((wx >> shift) & 0xFF)]++;
+        }
+        return;
+    }
+    uint64_t quarter = 1ull << (2 * (31 - zoom - depth)); /* side > 1, so zoom + depth ≤ 31 */
+    uint64_t cut[5] = {first, 0, 0, 0, end};
+    for (unsigned k = 1; k < 4; k++)
+        cut[k] = first_at_least(tf, cut[k - 1], end, start + k * quarter);
+    unsigned half = side / 2;
+    for (unsigned k = 0; k < 4; k++)
+        count_cell(tf, zoom, cut[k], cut[k + 1], depth + 1, px + (k & 1) * half, py + (k >> 1) * half,
+                   start + k * quarter, counts);
+}
+
 uint64_t render_count(const struct tilefile *tf, unsigned zoom, uint32_t x, uint32_t y, uint64_t counts[RENDER_PIXELS])
 {
     memset(counts, 0, RENDER_PIXELS * sizeof counts[0]);
     uint64_t first, end;
     tilefile_tile(tf, zoom, x, y, &first, &end);
-    unsigned shift = 24 - zoom; /* a pixel is 2^(32 - zoom - 8) world units wide */
-    for (uint64_t i = first; i < end; i++) {
-        uint32_t wx, wy;
-        geo_split(tilefile_code(tf, i), &wx, &wy);
-        counts[((wy >> shift) & 0xFF) << 8 | ((wx >> shift) & 0xFF)]++; /* 64-bit: billions of points fit */
-    }
+    uint64_t start = geo_code((uint32_t)((uint64_t)x << (32 - zoom)), (uint32_t)((uint64_t)y << (32 - zoom)));
+    count_cell(tf, zoom, first, end, 0, 0, 0, start, counts);
     return end - first;
 }
 

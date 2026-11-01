@@ -154,6 +154,88 @@ static void a_png_has_valid_chunks_and_every_pixel(void)
     free(pixels);
 }
 
+/* The pixel counts by walking every point of the tile: what render_count gave before step 13. */
+static void count_by_walking(const struct tilefile *tf, unsigned zoom, uint32_t x, uint32_t y, uint64_t *out)
+{
+    memset(out, 0, RENDER_PIXELS * sizeof out[0]);
+    uint64_t first, end;
+    tilefile_tile(tf, zoom, x, y, &first, &end);
+    for (uint64_t i = first; i < end; i++) {
+        uint32_t wx, wy;
+        geo_split(tilefile_code(tf, i), &wx, &wy);
+        out[((wy >> (24 - zoom)) & 0xFF) << 8 | ((wx >> (24 - zoom)) & 0xFF)]++;
+    }
+}
+
+#define DENSE_POINTS 600000 /* more than a whole tile's 262,144 before it is cut */
+static void dense_tiles_count_the_same_as_walking_every_point(void)
+{
+    /* Clusters of every size, from one spot (all points in one pixel at every zoom) to the whole world, so that the
+     * splitting goes from the tile down to single pixels, stops part way, or walks. */
+    uint64_t *codes = malloc(DENSE_POINTS * sizeof *codes);
+    unsigned char *file = malloc(BUILD_HEADER_SIZE + 8 * (size_t)DENSE_POINTS);
+    uint64_t *walked = malloc(RENDER_PIXELS * sizeof *walked);
+    CHECK(codes != NULL && file != NULL && walked != NULL);
+    if (codes == NULL || file == NULL || walked == NULL)
+        goto done;
+    for (size_t i = 0; i < DENSE_POINTS;) {
+        uint32_t cx = (uint32_t)check_rand(), cy = (uint32_t)check_rand();
+        unsigned spread = (unsigned)(check_rand() % 33), size = 1 + (unsigned)(check_rand() % 300000);
+        uint32_t mask = spread == 32 ? UINT32_MAX : (uint32_t)((1ull << spread) - 1);
+        for (unsigned k = 0; k < size && i < DENSE_POINTS; k++, i++) {
+            uint64_t r = check_rand();
+            codes[i] = geo_code(cx ^ ((uint32_t)r & mask), cy ^ ((uint32_t)(r >> 32) & mask));
+        }
+    }
+    qsort(codes, DENSE_POINTS, sizeof codes[0], compare_u64);
+    struct build_header h;
+    memset(&h, 0, sizeof h);
+    h.count = DENSE_POINTS;
+    h.max_x = h.max_y = h.view_max_x = h.view_max_y = UINT32_MAX;
+    for (unsigned z = 0; z <= GEO_MAX_ZOOM; z++)
+        h.max_pixel_count[z] = 1;
+    build_encode_header(&h, file);
+    for (size_t i = 0; i < DENSE_POINTS; i++) {
+        for (int k = 0; k < 8; k++)
+            file[BUILD_HEADER_SIZE + 8 * i + (size_t)k] = (unsigned char)(codes[i] >> (8 * k));
+    }
+    struct tilefile tf;
+    CHECK(tilefile_check(file, BUILD_HEADER_SIZE + 8 * (size_t)DENSE_POINTS, &tf) == TILEFILE_OK);
+    for (int t = 0; t < 300; t++) {
+        unsigned zoom = (unsigned)(check_rand() % (GEO_MAX_ZOOM + 1));
+        struct geo_tile tile = geo_tile_of(codes[check_rand() % DENSE_POINTS], zoom);
+        uint64_t points = render_count(&tf, zoom, tile.x, tile.y, counts);
+        count_by_walking(&tf, zoom, tile.x, tile.y, walked);
+        uint64_t total = 0;
+        for (size_t p = 0; p < RENDER_PIXELS; p++)
+            total += counts[p];
+        CHECK(memcmp(counts, walked, RENDER_PIXELS * sizeof counts[0]) == 0);
+        CHECK_EQ_U64(points, total);
+        if (memcmp(counts, walked, RENDER_PIXELS * sizeof counts[0]) != 0)
+            break;
+    }
+    /* A tile with no point: all 0. */
+    CHECK_EQ_U64(0, render_count(&tf, 24, 0, 0, counts)); /* first: it clears counts (Codex, step 13) */
+    uint64_t any = 0;
+    for (size_t p = 0; p < RENDER_PIXELS; p++)
+        any |= counts[p];
+    CHECK_EQ_U64(0, any);
+    /* Every point in one spot: at every zoom, one pixel holds them all (cut down to that pixel, never walked). */
+    uint32_t sx = 0x12345678u, sy = 0x9ABCDEF0u;
+    for (size_t i = 0; i < DENSE_POINTS; i++)
+        for (int k = 0; k < 8; k++)
+            file[BUILD_HEADER_SIZE + 8 * i + (size_t)k] = (unsigned char)(geo_code(sx, sy) >> (8 * k));
+    CHECK(tilefile_check(file, BUILD_HEADER_SIZE + 8 * (size_t)DENSE_POINTS, &tf) == TILEFILE_OK);
+    for (unsigned zoom = 0; zoom <= GEO_MAX_ZOOM; zoom++) {
+        CHECK_EQ_U64(DENSE_POINTS, render_count(&tf, zoom, (uint32_t)((uint64_t)sx >> (32 - zoom)), (uint32_t)((uint64_t)sy >> (32 - zoom)), counts));
+        CHECK_EQ_U64(DENSE_POINTS, counts[((sy >> (24 - zoom)) & 0xFF) << 8 | ((sx >> (24 - zoom)) & 0xFF)]);
+    }
+done:
+    free(codes);
+    free(file);
+    free(walked);
+}
+
 const struct check_case render_cases[] = {
     {"pixel_counts_of_a_hand_made_tile",
      "x/y swapped, a pixel off by one, the bottom row drawn at the top, or a point of the next tile drawn in this one",
@@ -164,5 +246,8 @@ const struct check_case render_cases[] = {
     {"a_png_has_valid_chunks_and_every_pixel",
      "a wrong CRC, chunk length or IHDR field (browsers reject the tile), or pixels shifted by the row filter byte",
      a_png_has_valid_chunks_and_every_pixel},
+    {"dense_tiles_count_the_same_as_walking_every_point",
+     "a dense tile's quarters cut at the wrong code (points in the wrong pixel), a pixel counted twice or lost, or a cell's slice found past its end (step 13)",
+     dense_tiles_count_the_same_as_walking_every_point},
 };
 const size_t render_cases_count = sizeof render_cases / sizeof render_cases[0];

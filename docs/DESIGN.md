@@ -144,6 +144,7 @@ flowchart LR
 ![Count points per pixel, then color each pixel on a log scale](images/pixel-to-color.png)
 
 - Color scale fixed per zoom level (stored in the header) → same density = same color on every tile
+- Counting (step 13): a pixel is itself a slice of the sorted file, and so is every square of pixels. A dense square is cut into its 4 quarters by binary search, down to single pixels, whose count is their slice's length; a sparse one (at most 4 points a pixel) is walked point by point. So a tile's time grows with the pixels its points fill, not with the points: Porto's zoom-0 tile (83 million points in a few pixels) takes 0.6 ms, not 164 ms; a tile with every one of its 65,536 pixels dense, the worst case, about 20 ms (the step 13 skeptic: 22 ms for 40 million evenly spread points, against 81 ms point by point). The pictures are the same
 - Empty pixel = transparent
 
 ### 5.6 Counting an area
@@ -576,7 +577,7 @@ After every step: stop, show what was built and checked and how you can check it
 
 ### 12.3 Stages after stage 1
 
-![Flowchart](diagrams/DESIGN-d10-fdd9beb8.png)
+![Flowchart](diagrams/DESIGN-d10-e30f3228.png)
 
 <details><summary>Diagram source (mermaid — flowchart)</summary>
 
@@ -584,9 +585,9 @@ After every step: stop, show what was built and checked and how you can check it
 flowchart LR
   T1["Stage 1<br/>T-Drive<br/>~10M points"] --> T2["Stage 2<br/>GeoLife + USGS<br/>new formats, worldwide"]
   T2 --> T3["Stage 3<br/>Porto Taxi<br/>~80M, polylines"]
-  T3 --> DEC{"Decide:<br/>store time per point?"}
-  DEC --> T4["Stage 4<br/>NYC Taxi<br/>2B+, bigger than memory"]
-  T4 --> T5["Stage 5<br/>World datasets<br/>GPX, billions"]
+  T3 --> DEC{"Time per point: not stored<br/>(builder, 12.6; developer<br/>to confirm)"}
+  DEC --> T4["Stage 4<br/>fast tiles, NYC 2009-2010<br/>+ NOAA AIS: over 1B"]
+  T4 --> T5["Stage 5<br/>GPX (OSM traces), more<br/>world datasets"]
 ```
 
 </details>
@@ -621,6 +622,24 @@ The goal (`PROJECT_IDEAS.md` §8.5): "Polyline reader works; ~80M points still b
 |---|---|---|---|
 | 12 | `import --polyline C` (DESIGN §8), `tests/data/check_porto.py` in `make check-data`, fixture `porto_small.csv`, the stage 3 report | `gpstiles import --polyline 9 --skip 1 -o porto.pts train.csv` · Python's count · `build --mem 256M` · `info`, `count` · the page at Porto, zoom 13 | `rows=1710670 points=83409386 imported=83409386 skipped_zero=0 skipped_out_of_range=0 skipped_malformed=0` = Python (§13) · several runs, the same file as one run · traces on Porto's streets |
 
+### 12.6 Stage 4 steps (over a billion points)
+
+The goal (`PROJECT_IDEAS.md` §8.5): "Over 1 billion points; build must work out-of-core (data larger than RAM); tile latency stays in milliseconds". Two facts change the plan's dataset: TLC's files now hold places only for 2009 and 2010 (later years hold zone numbers), about 680 million pickup and dropoff points, short of a billion; and a zoomed-out tile is drawn point by point (164 ms at Porto's 83 million). So: fast tiles first, then NYC's 2009–2010 taxis, then a billion points from NOAA's ship positions (AIS, plain CSV, no account; planned for stage 5, moved here).
+
+**Time per point (§14's decision before stage 4):** not stored, for now. The plan asked for this decision before stage 4 because NYC is where time matters most (its "Time filter (\"only 8–9 am\")") and rebuilding billions of points later is costly. Here that cost looks small: the raw files stay in `data/raw/`, and NYC's 680 million points should import in about 4 minutes and build in about 1 (estimated from one month: 28 million rows in 9 s; step 14 measures it). A time filter needs more than a column: a second sort key or a file per period, and a format change (DESIGN §9.3). Decided by the builder on 2026-11-01 to keep going under the developer's "proceed with all stages"; **the developer should confirm or reverse it** (`PROGRESS.md`).
+
+| Step | What we build | How we check it |
+|---|---|---|
+| 13 Fast tiles | A tile's pixel counts without visiting every point: a dense part of the tile is cut into its 4 quarters (each one slice of the sorted file, found by binary search), down to single pixels, whose count is their slice's length. The pictures don't change | Every tile = the old way's tile, byte for byte, on every dataset · the Python pixel checks · zoomed-out tiles in milliseconds |
+| 14 NYC taxis | The 2009–2010 yellow taxi trips, pickups and dropoffs, converted from Parquet by DuckDB (in `data/tools/`, not part of the program) and imported as `lon,lat` rows | Counts = DuckDB's own count · places in Manhattan and at the airports = DuckDB's counts there · the map |
+| 15 A billion points | NOAA's AIS ship positions until past a billion points, a sort with a small `--mem` (many runs), the stage 4 report | Counts = `awk` · the build in many runs = one run · tiles in milliseconds at a billion points |
+
+| Step | Builds | You validate by | Expected result |
+|---|---|---|---|
+| 13 | `render_count` by splitting dense cells; `tests/validate/step-13.sh` | `gpstiles bench` on Porto; at every zoom, the tiles under 16 points of each dataset in `build/validate/` and `data/build/` against the program before this step | zoomed-out tiles of Porto under 5 ms (were 164 ms) · the same PNG bytes |
+| 14 | `tools/nyc-taxi.py` (Parquet → `lon,lat` rows), `tests/data/check_nyc.py` | import, `build`, the API in Manhattan | counts = DuckDB (§13) |
+| 15 | `tools/fetch-ais.sh`, `tests/data/check_ais.py`, the stage 4 report | import, `build --mem 2G`, `bench` | counts = `awk` · a billion points in milliseconds |
+
 ---
 
 ## 13. Validation facts (known answers)
@@ -645,6 +664,7 @@ The goal (`PROJECT_IDEAS.md` §8.5): "Polyline reader works; ~80M points still b
 | USGS rows at (0,0), out of range, malformed | 9, 565 (all nearer the North Pole than 85.05112877980659°, none south), 0 | `awk` |
 | USGS valid points | 4,770,607 | rows − zero − out of range |
 | Porto archive | `taxi+service+trajectory+prediction+challenge+ecml+pkdd+2015.zip` (UCI): 534,065,916 bytes, SHA-256 `a33e2a5e145607ae2bad0db5d21b7548c88b7e0f9db1ce15839f24c4c61f8c76`; inside, `train.csv.zip` → `train.csv`, 1,942,848,724 bytes | archive.ics.uci.edu, 2026-11-01 |
+| NYC taxis 2009–2010 (TLC) | 24 Parquet files, 11 GB · 339,897,217 trips → 679,794,434 pickup and dropoff points: 668,475,278 on the map, 11,315,804 at (0,0), 3,242 off the map, 110 without a place | DuckDB, 2026-11-01 |
 | Porto trips (rows) and points | 1,710,670 trips (5,901 with no point), 83,409,386 points, all on the map, none at (0,0), no malformed row; longest line 84,640 bytes | Python's `csv` and `json` |
 
 ---
@@ -653,7 +673,7 @@ The goal (`PROJECT_IDEAS.md` §8.5): "Polyline reader works; ~80M points still b
 
 | Feature | When |
 |---|---|
-| Time filter / time animation | Decide before stage 4 (changes the file format) |
+| Time filter / time animation | Not stored (decided 2026-11-01, §12.6; the developer may reverse it): would change the file format |
 | Compare two datasets | After the time decision |
 | Filter by other columns (fare, vehicle) | Later; needs a new index design |
 | Linux-only speedups (io_uring, O_DIRECT) | After macOS stages work |
