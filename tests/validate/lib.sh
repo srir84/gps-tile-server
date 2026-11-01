@@ -125,3 +125,31 @@ usgs_gpt() {
     echo "$now" > "$key"
     USGS_COUNTS=$(cat "$counts")
 }
+
+# Porto's taxi trips (step 12): one CSV file, the points of a trip in its POLYLINE column (the 9th).
+PORTO_DATA="$ROOT/data/raw/porto/train.csv"
+
+# Imports and builds Porto into build/validate/porto.gpt with --mem 256M (several runs), kept while the file and the
+# options are the same. Sets PORTO_PTS, PORTO_GPT, PORTO_COUNTS and PORTO_BUILD (build's line). Needs $PORTO_DATA.
+porto_gpt() {
+    PORTO_PTS=$ROOT/build/validate/porto.pts
+    PORTO_GPT=$ROOT/build/validate/porto.gpt
+    local counts=$ROOT/build/validate/porto.counts key=$ROOT/build/validate/porto.key
+    local options="--polyline 9 --skip 1" now
+    now=$({ echo "$options"; ls -lnT "$PORTO_DATA"; } | shasum -a 256) || fail "can't list Porto's file"
+    if [ "$PORTO_GPT" -nt "$ROOT/build/gpstiles" ] && [ "$PORTO_PTS" -nt "$ROOT/build/gpstiles" ] &&
+        [ "$counts" -nt "$ROOT/build/gpstiles" ] && [ "$(cat "$key" 2> /dev/null)" = "$now" ]; then
+        PORTO_COUNTS=$(sed -n 1p "$counts")
+        PORTO_BUILD=$(sed -n 2p "$counts")
+        return 0
+    fi
+    mkdir -p "$ROOT/build/validate/runs" || exit 1
+    rm -f "$PORTO_PTS" "$PORTO_GPT" "$counts" "$key"
+    # shellcheck disable=SC2086 # $options is several words
+    "$ROOT/build/gpstiles" import $options -o "$PORTO_PTS" "$PORTO_DATA" > "$counts" || fail "Porto import failed"
+    "$ROOT/build/gpstiles" build --mem 256M --tmp "$ROOT/build/validate/runs" -o "$PORTO_GPT" "$PORTO_PTS" >> "$counts" ||
+        fail "Porto build failed"
+    echo "$now" > "$key"
+    PORTO_COUNTS=$(sed -n 1p "$counts")
+    PORTO_BUILD=$(sed -n 2p "$counts")
+}

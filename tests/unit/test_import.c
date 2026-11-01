@@ -9,7 +9,8 @@
 #include "geo.h"
 #include "import.h"
 
-static const struct import_options TDRIVE = {3, 4, ',', 0};
+static const struct import_options TDRIVE = {3, 4, ',', 0, 0};
+static const struct import_options PORTO = {0, 0, ',', 1, 9};
 
 static int parses(const char *text, double expected)
 {
@@ -72,21 +73,22 @@ static void rows_are_sorted_into_the_right_bucket(void)
     CHECK(row("1,t,abc,39.9", &code) == IMPORT_MALFORMED && row(" ", &code) == IMPORT_MALFORMED);
     CHECK(row("1,t,116.5,39.9,extra,columns", &code) == IMPORT_POINT);
 
-    struct import_options x_delim = {1, 2, 'x', 0};
+    struct import_options x_delim = {1, 2, 'x', 0, 0};
     char hex_looking[] = "0x10"; /* lon 0, lat 10: strtod must not read "0x10" as one hex number */
     CHECK(import_row(hex_looking, strlen(hex_looking), &x_delim, &code) == IMPORT_POINT);
     CHECK_EQ_U64(geo_code(geo_world_x(0.0), geo_world_y(10.0)), code);
 
-    struct import_options lat_first = {2, 1, '\t', 0};
+    struct import_options lat_first = {2, 1, '\t', 0, 0};
     char line[] = "39.907\t116.391";
     CHECK(import_row(line, strlen(line), &lat_first, &code) == IMPORT_POINT);
     CHECK_EQ_U64(843, geo_tile_of(code, 10).x);
 }
 
 /* Writes `data` to a temp file and imports it with TDRIVE options; codes go to *out (rewound). */
-static int import_bytes(const char *data, size_t length, unsigned long skip, struct import_counts *counts, FILE **out)
+static int import_with(const struct import_options *given, const char *data, size_t length, unsigned long skip,
+                       struct import_counts *counts, FILE **out)
 {
-    struct import_options options = TDRIVE;
+    struct import_options options = *given;
     options.skip = skip;
     FILE *in = tmpfile();
     *out = tmpfile();
@@ -98,6 +100,11 @@ static int import_bytes(const char *data, size_t length, unsigned long skip, str
     fclose(in);
     rewind(*out);
     return status;
+}
+
+static int import_bytes(const char *data, size_t length, unsigned long skip, struct import_counts *counts, FILE **out)
+{
+    return import_with(&TDRIVE, data, length, skip, counts, out);
 }
 
 static uint64_t read_code(FILE *f)
@@ -164,7 +171,7 @@ static void random_files_split_into_the_same_lines_as_by_hand(void)
         if (run % 2 == 1)
             length--; /* no final newline */
 
-        struct import_counts counts, expected = {0, 0, 0, 0, 0};
+        struct import_counts counts, expected = {0, 0, 0, 0, 0, 0};
         FILE *out;
         CHECK(import_bytes(big, length, 0, &counts, &out) == 0);
         size_t start = 0;
@@ -205,6 +212,121 @@ static void random_files_split_into_the_same_lines_as_by_hand(void)
     }
 }
 
+/* Column `col` of a CSV line as text ("" when import_csv_column refuses the line). */
+static const char *column(const char *line, unsigned col)
+{
+    static char text[256];
+    const char *start;
+    size_t length;
+    if (import_csv_column(line, strlen(line), ',', col, &start, &length) != 0)
+        return "";
+    snprintf(text, sizeof text, "[%.*s]", (int)length, start);
+    return text;
+}
+
+static void quoted_csv_columns_keep_their_commas(void)
+{
+    CHECK(strcmp(column("a,\"[[1,2],[3,4]]\",c", 2), "[[[1,2],[3,4]]]") == 0);
+    CHECK(strcmp(column("a,\"[[1,2],[3,4]]\",c", 3), "[c]") == 0);
+    CHECK(strcmp(column("\"x\"\"y\",z", 1), "[x\"\"y]") == 0); /* "" inside a field stays doubled */
+    CHECK(strcmp(column("\"x\"\"y\",z", 2), "[z]") == 0);
+    CHECK(strcmp(column("a,,c", 2), "[]") == 0);
+    CHECK(strcmp(column("a,b,", 3), "[]") == 0);
+    CHECK(strcmp(column("a,\"\"", 2), "[]") == 0);
+    /* Refused: too few columns, a quote not closed, text after a closing quote. */
+    CHECK(strcmp(column("a,b", 3), "") == 0);
+    CHECK(strcmp(column("a,\"[[1,2]", 2), "") == 0);
+    CHECK(strcmp(column("a,\"x\"y,c", 2), "") == 0);
+    CHECK(strcmp(column("a,\"x\"\"", 2), "") == 0);
+    /* A broken quote after the column refuses the row too (Codex, step 12). */
+    CHECK(strcmp(column("\"[[1,2]]\",\"open", 1), "") == 0);
+    CHECK(strcmp(column("\"[[1,2]]\",\"x\"y", 1), "") == 0);
+    CHECK(strcmp(column("\"[[1,2]]\",\"x\",z", 1), "[[[1,2]]]") == 0);
+}
+
+static long pairs_of(const char *text, double *lonlat, size_t max_pairs)
+{
+    return import_parse_polyline(text, strlen(text), lonlat, max_pairs);
+}
+
+static void pair_lists_parse_whole_or_not_at_all(void)
+{
+    double v[8];
+    CHECK(pairs_of("[[-8.618643,41.141412],[-8.618499,41.141376]]", v, 4) == 2);
+    CHECK(v[0] == -8.618643 && v[1] == 41.141412 && v[2] == -8.618499 && v[3] == 41.141376);
+    CHECK(pairs_of(" [ [ 1 , 2 ] ,\t[3,4e1] ] ", v, 4) == 2 && v[3] == 40.0);
+    CHECK(pairs_of("[]", v, 4) == 0 && pairs_of(" [ ] ", v, 4) == 0);
+    CHECK(pairs_of("[[1e999,2]]", v, 4) == 1); /* a number (DESIGN §8), off the map when classified */
+    /* Numbers of 63 characters are read, 64 are refused (the copy's buffer is 64 bytes, with its '\0'). */
+    char text[160], digits[70];
+    memset(digits, '1', sizeof digits);
+    snprintf(text, sizeof text, "[[%.63s,2]]", digits);
+    CHECK(pairs_of(text, v, 4) == 1);
+    snprintf(text, sizeof text, "[[%.64s,2]]", digits);
+    CHECK(pairs_of(text, v, 4) == -1);
+    snprintf(text, sizeof text, "[[2,%.63s]]", digits);
+    CHECK(pairs_of(text, v, 4) == 1);
+    CHECK(pairs_of("[[1,2],[3,4]]", v, 1) == -1); /* more pairs than room: the whole row is refused */
+    const char *bad[] = {"", "[", "]", "[[1,2]", "[[1,2],]", "[[1,2],,[3,4]]", "[[1],[2,3]]", "[[1,2,3]]", "[[a,2]]",
+                         "[[1,2]]x", "x[[1,2]]", "[[1,2][3,4]]", "[1,2]", "[[1,2],[3,4]", "[[nan,1]]", "[[0x1,2]]",
+                         "[[1 2,3]]", "[[,2]]", "[[1,]]", "[[1000000000000000000000000000000000000000000000000000000000000000000000,2]]"};
+    for (size_t i = 0; i < sizeof bad / sizeof bad[0]; i++)
+        CHECK(pairs_of(bad[i], v, 4) == -1);
+}
+
+static void polyline_rows_count_each_pair_as_a_point(void)
+{
+    /* A header; a good trip; an empty trip; a trip with (0,0) and a place off the map; a broken list (nothing of it
+     * kept, though its first pair is fine); a blank line; a short line without the column; CRLF at the end. */
+    const char data[] = "TRIP,POLYLINE\n1,\"[[-8.61,41.14],[-8.62,41.15]]\"\n2,\"[]\"\n3,\"[[0,0],[200,1],[-8.6,41.1]]\"\n"
+                        "4,\"[[-8.6,41.1],]\"\n\n5\n6,\"[[-8.7,41.2]]\"\r\n";
+    struct import_options porto = PORTO;
+    porto.polyline_col = 2;
+    struct import_counts counts;
+    FILE *out;
+    CHECK(import_with(&porto, data, sizeof data - 1, 1, &counts, &out) == 0);
+    CHECK_EQ_U64(6, counts.rows);
+    CHECK_EQ_U64(6, counts.points);
+    CHECK_EQ_U64(4, counts.imported);
+    CHECK_EQ_U64(1, counts.skipped_zero);
+    CHECK_EQ_U64(1, counts.skipped_out_of_range);
+    CHECK_EQ_U64(2, counts.skipped_malformed); /* rows 4 and 5 */
+    CHECK_EQ_U64(geo_code(geo_world_x(-8.61), geo_world_y(41.14)), read_code(out));
+    CHECK_EQ_U64(geo_code(geo_world_x(-8.62), geo_world_y(41.15)), read_code(out));
+    CHECK_EQ_U64(geo_code(geo_world_x(-8.6), geo_world_y(41.1)), read_code(out));
+    CHECK_EQ_U64(geo_code(geo_world_x(-8.7), geo_world_y(41.2)), read_code(out));
+    CHECK(fgetc(out) == EOF);
+    fclose(out);
+}
+
+static void polyline_rows_may_be_long_up_to_their_limit(void)
+{
+    /* A row of exactly IMPORT_MAX_POLYLINE_LINE bytes is read (it would be malformed as a plain row), one byte more is
+     * malformed, and the row after it still counts. */
+    static char data[2 * IMPORT_MAX_POLYLINE_LINE + 64];
+    size_t n = 0;
+    for (int extra = 0; extra < 2; extra++) {
+        size_t start = n;
+        n += (size_t)snprintf(data + n, sizeof data - n, "1,\"[[-8.6,41.1]");
+        while (n - start < IMPORT_MAX_POLYLINE_LINE + (size_t)extra - 18)
+            n += (size_t)snprintf(data + n, sizeof data - n, ",[1,2]");
+        while (n - start < IMPORT_MAX_POLYLINE_LINE + (size_t)extra - 2)
+            data[n++] = ' ';
+        n += (size_t)snprintf(data + n, sizeof data - n, "]\"\n");
+        CHECK_EQ_U64(IMPORT_MAX_POLYLINE_LINE + (size_t)extra + 1, n - start); /* + its '\n' */
+    }
+    n += (size_t)snprintf(data + n, sizeof data - n, "2,\"[[-8.7,41.2]]\"\n");
+    struct import_options porto = PORTO;
+    porto.polyline_col = 2;
+    struct import_counts counts;
+    FILE *out;
+    CHECK(import_with(&porto, data, n, 0, &counts, &out) == 0);
+    fclose(out);
+    CHECK_EQ_U64(3, counts.rows);
+    CHECK_EQ_U64(1, counts.skipped_malformed);
+    CHECK(counts.points > 100000 && counts.points == counts.imported);
+}
+
 const struct check_case import_cases[] = {
     {"plain_decimals_parse_and_nothing_else_does",
      "nan, inf, hex, spaces or trailing junk accepted as a coordinate, or a NUL byte hiding junk",
@@ -223,5 +345,17 @@ const struct check_case import_cases[] = {
     {"random_files_split_into_the_same_lines_as_by_hand",
      "the line reader drops, merges or splits lines at the 1 MiB buffer edge, after a too-long line, or at the end",
      random_files_split_into_the_same_lines_as_by_hand},
+    {"quoted_csv_columns_keep_their_commas",
+     "a polyline column split at its own commas, a \"\" taken as the end of a field, or a broken quote read as text (step 12)",
+     quoted_csv_columns_keep_their_commas},
+    {"pair_lists_parse_whole_or_not_at_all",
+     "half of a broken list imported, a trailing comma or a missing number accepted, or too many pairs written past the buffer",
+     pair_lists_parse_whole_or_not_at_all},
+    {"polyline_rows_count_each_pair_as_a_point",
+     "an empty trip or a broken list counted wrong, a (0,0) or faraway pair kept, a broken list's first pair kept",
+     polyline_rows_count_each_pair_as_a_point},
+    {"polyline_rows_may_be_long_up_to_their_limit",
+     "a long trip refused at the plain rows' 64 KB, a row past 1,000,000 bytes kept, or the row after it lost",
+     polyline_rows_may_be_long_up_to_their_limit},
 };
 const size_t import_cases_count = sizeof import_cases / sizeof import_cases[0];

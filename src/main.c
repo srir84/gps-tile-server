@@ -120,7 +120,7 @@ static int cmd_where(int argc, char **argv)
     return 0;
 }
 
-#define IMPORT_USAGE "usage: gpstiles import --lon-col C --lat-col C [--delim D] [--skip N] -o OUT.pts FILE..."
+#define IMPORT_USAGE "usage: gpstiles import (--lon-col C --lat-col C | --polyline C) [--delim D] [--skip N] -o OUT.pts FILE..."
 #define MAX_COLUMN 10000
 
 static int import_error(const char *what, const char *arg, const char *want)
@@ -288,7 +288,7 @@ static int finish_temp(const char *command, const char *tmp_path, const char *ou
  * changes an existing output file. */
 static int cmd_import(int argc, char **argv)
 {
-    struct import_options options = {0, 0, ',', 0};
+    struct import_options options = {0, 0, ',', 0, 0};
     const char *out_path = NULL;
     int i = 1;
     for (; i < argc && argv[i][0] == '-'; i++) {
@@ -301,6 +301,9 @@ static int cmd_import(int argc, char **argv)
                 return 2;
         } else if (strcmp(option, "--lat-col") == 0) {
             if (parse_column(option, value, &options.lat_col) != 0)
+                return 2;
+        } else if (strcmp(option, "--polyline") == 0) {
+            if (parse_column(option, value, &options.polyline_col) != 0)
                 return 2;
         } else if (strcmp(option, "--delim") == 0) {
             options.delim = strcmp(value, "tab") == 0 ? '\t' : value[0];
@@ -319,11 +322,19 @@ static int cmd_import(int argc, char **argv)
     }
     char **files = argv + i; /* everything after the options */
     int file_count = argc - i;
-    if (options.lon_col == 0 || options.lat_col == 0 || out_path == NULL || file_count == 0) {
+    if (options.polyline_col != 0 && (options.lon_col != 0 || options.lat_col != 0)) {
+        fputs("gpstiles import: --polyline reads both places from one column: not with --lon-col or --lat-col\n", stderr);
+        return 2;
+    }
+    if (options.polyline_col != 0 && strchr("\"[]", options.delim) != NULL)
+        return import_error("--delim", options.delim == '"' ? "\"" : options.delim == '[' ? "[" : "]",
+                            "with --polyline, want a character that isn't a quote or a bracket");
+    if (((options.lon_col == 0 || options.lat_col == 0) && options.polyline_col == 0) || out_path == NULL ||
+        file_count == 0) {
         fputs("gpstiles import: missing arguments (" IMPORT_USAGE ")\n", stderr);
         return 2;
     }
-    if (options.lon_col == options.lat_col) {
+    if (options.polyline_col == 0 && options.lon_col == options.lat_col) {
         fputs("gpstiles import: --lon-col and --lat-col are the same column\n", stderr);
         return 2;
     }
@@ -336,7 +347,7 @@ static int cmd_import(int argc, char **argv)
     FILE *out = open_temp_beside("import", out_path, &tmp_path);
     if (out == NULL)
         return 1;
-    struct import_counts counts = {0, 0, 0, 0, 0};
+    struct import_counts counts = {0, 0, 0, 0, 0, 0};
     int status = import_files(files, file_count, out_path, out, &options, &counts);
     errno = 0;
     if (fclose(out) != 0 && status == 0)
@@ -345,9 +356,12 @@ static int cmd_import(int argc, char **argv)
     free(tmp_path);
     if (status != 0)
         return status;
-    printf("rows=%" PRIu64 " imported=%" PRIu64 " skipped_zero=%" PRIu64 " skipped_out_of_range=%" PRIu64
-           " skipped_malformed=%" PRIu64 "\n",
-           counts.rows, counts.imported, counts.skipped_zero, counts.skipped_out_of_range, counts.skipped_malformed);
+    if (options.polyline_col != 0) /* a row is a list of points: how many points the lists held */
+        printf("rows=%" PRIu64 " points=%" PRIu64 " ", counts.rows, counts.points);
+    else
+        printf("rows=%" PRIu64 " ", counts.rows);
+    printf("imported=%" PRIu64 " skipped_zero=%" PRIu64 " skipped_out_of_range=%" PRIu64 " skipped_malformed=%" PRIu64 "\n",
+           counts.imported, counts.skipped_zero, counts.skipped_out_of_range, counts.skipped_malformed);
     return 0;
 }
 

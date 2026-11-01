@@ -308,7 +308,18 @@ flowchart TD
 | Long line | More than 65,536 bytes before the `\n` (a trailing `\r` counts) → malformed |
 | Numbers | Plain decimals only: no quotes, spaces, `nan`, `inf` or hex. `1e999` is a number, but out of range |
 | `--skip N` | Skips the first N lines of each file |
-| `--delim` | One character that can't be part of a number, or `tab` |
+| `--delim` | One character that can't be part of a number, or `tab` (with `--polyline`, not `"`, `[` or `]` either) |
+
+**Polyline rows** (`--polyline C`, step 12): a row is one trip, its places in one column as a list of `[lon,lat]` pairs.
+
+| Rule | Value |
+|---|---|
+| The column | CSV: a field may be quoted (`"..."`, with `""` for a quote inside), so the list's own commas don't split it. Unquoted works too when the list has no delimiter in it |
+| The list | Exactly `[[lon,lat],[lon,lat],...]` or `[]`; spaces and tabs allowed between its parts; numbers as for plain rows, at most 63 characters |
+| A row that isn't one | Too few columns, a quote not closed or text after a closing quote (in any field of the row), a list not closed or with a missing number, a trailing comma, 3 numbers in a pair: one malformed row, and none of its pairs is kept |
+| Each pair | A point, with the plain rows' rules: (0,0) skipped, off the map skipped, else kept |
+| Counts | `rows=` trips, `points=` the pairs of the well-formed rows, then `imported`, `skipped_zero`, `skipped_out_of_range` (pairs) and `skipped_malformed` (rows) |
+| Long rows | Up to 1,000,000 bytes (a plain row: 65,536; a trailing `\r` counts in both); longer is one malformed row |
 
 ---
 
@@ -318,7 +329,7 @@ flowchart TD
 
 | Command | Does | Step |
 |---|---|---|
-| `gpstiles import --lon-col C --lat-col C [--delim D] [--skip N] -o out.pts FILE...` | Text → `.pts`, prints counts | 2 |
+| `gpstiles import (--lon-col C --lat-col C \| --polyline C) [--delim D] [--skip N] -o out.pts FILE...` | Text → `.pts`, prints counts. `--polyline C`: column C holds a list of `[lon,lat]` pairs (§8) | 2, 12 |
 | `gpstiles build [--mem 1G] [--tmp DIR] -o out.gpt in.pts...` | External merge sort → `.gpt`. `--mem` sizes the sort buffer, plus small fixed extras (§5.3) | 3a |
 | `gpstiles serve [--host 127.0.0.1] [--port 8080] FILE.gpt [FILE.gpt ...]` | Run the web server for one or more datasets | 5a |
 | `gpstiles where LON LAT --zoom Z` | Print the tile for a location | 1 |
@@ -598,6 +609,18 @@ The goal (`PROJECT_IDEAS.md` §8.5): a second file layout and points spread over
 | 10 | `tests/data/row_counts.awk` (DESIGN §8's rules, any columns; not for data with NUL bytes), `tests/data/check_geolife.py` in `make check-data`, fixture `geolife_small.plt`, `tools/review.sh` takes steps 10–99 | In `data/raw/geolife/Geolife Trajectories 1.3/Data`: `gpstiles import --lat-col 1 --lon-col 2 --skip 6 -o "$TMPDIR/geolife.pts" */Trajectory/*.plt` · the same `awk` count · `build`, `info`, `count` Beijing's zoom-6 tile and its 4 children · the page at Beijing, zoom 11 and 16 | `rows=24876978 imported=24876977 skipped_zero=0 skipped_out_of_range=1 skipped_malformed=0` = awk (§13) · `points=24876977` · tile = sum of its children = slow count · traces on the streets, as in the user guide's Figure 1 |
 | 11 | `tools/fetch-usgs.py`, `tests/data/check_usgs.py` in `make check-data`, the stage 2 report | `tools/fetch-usgs.py data/raw/usgs` · `gpstiles import --lat-col 2 --lon-col 3 --skip 1` · build · serve · the count API for a box across the 180° line (Fiji–Tonga) and one around Japan · a box drawn across the 180° line on the page · the world map | Every period = USGS's count (`MANIFEST.txt`) · counts = awk · box counts = Python's slow count · the drawn box = its two halves added up · the Ring of Fire · bench for every dataset |
 
+### 12.5 Stage 3 steps (Porto taxis)
+
+The goal (`PROJECT_IDEAS.md` §8.5): "Polyline reader works; ~80M points still build and serve quickly". Porto's 1.7 million taxi trips are one CSV row each, their GPS points in one quoted `POLYLINE` column as a JSON list of `[lon,lat]` pairs. The same every-stage checks as §12.4.
+
+| Step | What we build | How we check it |
+|---|---|---|
+| 12 Porto taxis | `import --polyline C`: column C (a CSV field, quoted or not) holds a list of `[lon,lat]` pairs, each pair a point. Rows up to 1,000,000 bytes. Then the stage 3 report: 83 million points, sorted with a small `--mem` (many runs), and their speed | Counts match Python's own `csv` and `json` reading of the file · every point of a sample = the Python rules · tiles add up · places in Porto hold the points Python finds there · the map shows Porto's streets |
+
+| Step | Builds | You validate by | Expected result |
+|---|---|---|---|
+| 12 | `import --polyline C` (DESIGN §8), `tests/data/check_porto.py` in `make check-data`, fixture `porto_small.csv`, the stage 3 report | `gpstiles import --polyline 9 --skip 1 -o porto.pts train.csv` · Python's count · `build --mem 256M` · `info`, `count` · the page at Porto, zoom 13 | `rows=1710670 points=83409386 imported=83409386 skipped_zero=0 skipped_out_of_range=0 skipped_malformed=0` = Python (§13) · several runs, the same file as one run · traces on Porto's streets |
+
 ---
 
 ## 13. Validation facts (known answers)
@@ -621,6 +644,8 @@ The goal (`PROJECT_IDEAS.md` §8.5): a second file layout and points spread over
 | USGS earthquakes, 1900-01-01 to 2026-10-01 (`eventtype=earthquake`) | 58 files (1900–1969, then a year each), 4,771,181 rows, each file = USGS's count of its period | `tools/fetch-usgs.py`, 2026-11-01 (`MANIFEST.txt`) |
 | USGS rows at (0,0), out of range, malformed | 9, 565 (all nearer the North Pole than 85.05112877980659°, none south), 0 | `awk` |
 | USGS valid points | 4,770,607 | rows − zero − out of range |
+| Porto archive | `taxi+service+trajectory+prediction+challenge+ecml+pkdd+2015.zip` (UCI): 534,065,916 bytes, SHA-256 `a33e2a5e145607ae2bad0db5d21b7548c88b7e0f9db1ce15839f24c4c61f8c76`; inside, `train.csv.zip` → `train.csv`, 1,942,848,724 bytes | archive.ics.uci.edu, 2026-11-01 |
+| Porto trips (rows) and points | 1,710,670 trips (5,901 with no point), 83,409,386 points, all on the map, none at (0,0), no malformed row; longest line 84,640 bytes | Python's `csv` and `json` |
 
 ---
 

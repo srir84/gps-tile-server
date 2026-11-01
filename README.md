@@ -56,6 +56,7 @@ Any CSV-like file works: name the longitude and latitude columns (counted from 1
 | Dataset | Get it | Import (`build` and `serve` as above) |
 |---|---|---|
 | GeoLife: 182 people's GPS traces, mostly Beijing (24.9 million points) | `Geolife Trajectories 1.3.zip` from Microsoft's download centre (no account), unzipped into `data/raw/geolife/` | from inside `data/raw/geolife/Geolife Trajectories 1.3/Data`: `gpstiles import --lat-col 1 --lon-col 2 --skip 6 -o geolife.pts */Trajectory/*.plt` |
+| Porto taxis, a year of 448 taxis (83 million points, one trip a row) | the ECML/PKDD 2015 taxi data from the UCI Machine Learning Repository (no account), `train.csv` in `data/raw/porto/` | `gpstiles import --polyline 9 --skip 1 -o porto.pts train.csv` (column 9 holds each trip's `[[lon,lat],...]`) |
 | USGS earthquakes since 1900, worldwide (4.8 million) | `tools/fetch-usgs.py data/raw/usgs` (USGS's own service, no account; about 40 minutes; each year checked against USGS's count) | from inside `data/raw/usgs`: `gpstiles import --lat-col 2 --lon-col 3 --skip 1 -o earthquakes.pts usgs-*.csv` |
 
 With very many files, run the import from inside their folder (shorter names), or import them in batches into several `.pts` files and give them all to `build`.

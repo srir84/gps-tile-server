@@ -73,6 +73,7 @@ check-data: $(BIN)
 	@GPSTILES_BIN=$(BIN) $(PYTHON) -I -B tests/data/check_tdrive.py
 	@GPSTILES_BIN="$(CURDIR)/$(BIN)" $(PYTHON) -I -B tests/data/check_geolife.py
 	@GPSTILES_BIN="$(CURDIR)/$(BIN)" $(PYTHON) -I -B tests/data/check_usgs.py
+	@GPSTILES_BIN="$(CURDIR)/$(BIN)" $(PYTHON) -I -B tests/data/check_porto.py
 
 # Everything, in order, stopping at the first red part (TESTING.md §12.1). The steps' scripts in step order (1, 2, …, 10).
 

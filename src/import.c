@@ -7,7 +7,8 @@
 #include "geo.h"
 
 #define NUMBER_CHARS "0123456789+-.eE"
-#define READ_SIZE (1u << 20) /* must be larger than IMPORT_MAX_LINE */
+#define READ_SIZE (1u << 20) /* must be larger than IMPORT_MAX_LINE and IMPORT_MAX_POLYLINE_LINE */
+_Static_assert(IMPORT_MAX_LINE < READ_SIZE && IMPORT_MAX_POLYLINE_LINE < READ_SIZE, "a row must fit the read buffer");
 
 int import_parse_number(const char *text, size_t length, double *out)
 {
@@ -46,6 +47,116 @@ static int find_column(char *line, size_t length, char delim, unsigned col, char
     return 0;
 }
 
+enum import_result import_point(double lon, double lat, uint64_t *code)
+{
+    if (lon == 0.0 && lat == 0.0)
+        return IMPORT_ZERO;
+    if (!geo_valid_lon(lon) || !geo_valid_lat(lat))
+        return IMPORT_OUT_OF_RANGE;
+    *code = geo_code(geo_world_x(lon), geo_world_y(lat));
+    return IMPORT_POINT;
+}
+
+int import_csv_column(const char *line, size_t length, char delim, unsigned col, const char **start,
+                      size_t *field_length)
+{
+    size_t i = 0;
+    int found = 0;
+    for (unsigned k = 1;; k++) { /* every field, so a broken quote anywhere in the row refuses it */
+        size_t begin, end;
+        if (i < length && line[i] == '"') {
+            begin = ++i;
+            for (;;) {
+                const char *quote = memchr(line + i, '"', length - i);
+                if (quote == NULL)
+                    return -1; /* not closed */
+                i = (size_t)(quote - line);
+                if (i + 1 < length && line[i + 1] == '"') {
+                    i += 2; /* "" is a quote inside the field */
+                    continue;
+                }
+                break;
+            }
+            end = i++;
+            if (i < length && line[i] != delim)
+                return -1;
+        } else {
+            begin = i;
+            const char *next = memchr(line + i, delim, length - i);
+            i = next != NULL ? (size_t)(next - line) : length;
+            end = i;
+        }
+        if (k == col) {
+            *start = line + begin;
+            *field_length = end - begin;
+            found = 1;
+        }
+        if (i >= length)
+            return found ? 0 : -1; /* the row's end: too few columns unless col was among them */
+        i++;                       /* past the delimiter */
+    }
+}
+
+static size_t skip_blanks(const char *s, size_t i, size_t n)
+{
+    while (i < n && (s[i] == ' ' || s[i] == '\t'))
+        i++;
+    return i;
+}
+
+/* One number of a pair list: up to the next ',', ']', space or tab. */
+static int list_number(const char *s, size_t *i, size_t n, double *out)
+{
+    char text[64];
+    size_t start = *i;
+    while (*i < n && s[*i] != ',' && s[*i] != ']' && s[*i] != ' ' && s[*i] != '\t')
+        (*i)++;
+    size_t length = *i - start;
+    if (length == 0 || length >= sizeof text)
+        return -1;
+    memcpy(text, s + start, length);
+    text[length] = '\0';
+    return import_parse_number(text, length, out);
+}
+
+long import_parse_polyline(const char *s, size_t n, double *lonlat, size_t max_pairs)
+{
+    size_t i = skip_blanks(s, 0, n), pairs = 0;
+    if (i >= n || s[i++] != '[')
+        return -1;
+    i = skip_blanks(s, i, n);
+    if (i < n && s[i] == ']')
+        return skip_blanks(s, i + 1, n) == n ? 0 : -1;
+    for (;;) {
+        if (pairs == max_pairs || i >= n || s[i++] != '[')
+            return -1;
+        double *pair = lonlat + 2 * pairs;
+        i = skip_blanks(s, i, n);
+        if (list_number(s, &i, n, &pair[0]) != 0)
+            return -1;
+        i = skip_blanks(s, i, n);
+        if (i >= n || s[i++] != ',')
+            return -1;
+        i = skip_blanks(s, i, n);
+        if (list_number(s, &i, n, &pair[1]) != 0)
+            return -1;
+        i = skip_blanks(s, i, n);
+        if (i >= n || s[i++] != ']')
+            return -1;
+        pairs++;
+        i = skip_blanks(s, i, n);
+        if (i >= n)
+            return -1; /* the list isn't closed */
+        if (s[i] == ',') {
+            i = skip_blanks(s, i + 1, n);
+            continue;
+        }
+        if (s[i] != ']')
+            return -1;
+        return skip_blanks(s, i + 1, n) == n ? (long)pairs : -1;
+    }
+}
+
 enum import_result import_row(char *line, size_t length, const struct import_options *options, uint64_t *code)
 {
     if (length > 0 && line[length - 1] == '\r')
@@ -64,12 +175,7 @@ enum import_result import_row(char *line, size_t length, const struct import_opt
     lat_text[lat_length] = '\0';
     if (import_parse_number(lon_text, lon_length, &lon) != 0 || import_parse_number(lat_text, lat_length, &lat) != 0)
         return IMPORT_MALFORMED;
-    if (lon == 0.0 && lat == 0.0)
-        return IMPORT_ZERO;
-    if (!geo_valid_lon(lon) || !geo_valid_lat(lat))
-        return IMPORT_OUT_OF_RANGE;
-    *code = geo_code(geo_world_x(lon), geo_world_y(lat));
-    return IMPORT_POINT;
+    return import_point(lon, lat, code);
 }
 
 struct line_reader {
@@ -77,12 +183,13 @@ struct line_reader {
     char *buf; /* READ_SIZE + 1 bytes: room for a '\0' after the last line */
     size_t start, end;
     int eof;
+    size_t max_line; /* IMPORT_MAX_LINE, or IMPORT_MAX_POLYLINE_LINE: less than READ_SIZE */
 };
 
 enum { LINE_OK, LINE_TOO_LONG, LINE_END, LINE_ERROR };
 
 /* Next line, '\0'-terminated in place of its '\n'. A last line without '\n' still counts.
- * A line longer than IMPORT_MAX_LINE is read to its end and reported as LINE_TOO_LONG. */
+ * A line longer than r->max_line is read to its end and reported as LINE_TOO_LONG. */
 static int next_line(struct line_reader *r, char **line, size_t *length)
 {
     int too_long = 0;
@@ -94,7 +201,7 @@ static int next_line(struct line_reader *r, char **line, size_t *length)
             size_t n = newline != NULL ? (size_t)(newline - data) : available;
             data[n] = '\0';
             r->start += n + (newline != NULL);
-            if (too_long || n > IMPORT_MAX_LINE)
+            if (too_long || n > r->max_line)
                 return LINE_TOO_LONG;
             *line = data;
             *length = n;
@@ -102,7 +209,7 @@ static int next_line(struct line_reader *r, char **line, size_t *length)
         }
         if (r->eof)
             return too_long ? LINE_TOO_LONG : LINE_END;
-        if (available > IMPORT_MAX_LINE) {
+        if (available > r->max_line) {
             too_long = 1; /* drop what we have, keep looking for the end of this line */
             r->end = 0;
         } else {
@@ -128,13 +235,64 @@ static int write_code(FILE *out, uint64_t code)
     return fwrite(bytes, 1, sizeof bytes, out) == sizeof bytes ? 0 : -1;
 }
 
+/* Counts one classified row or point, and writes a kept point. Returns 0, or -1 on a write error. */
+static int take(enum import_result result, uint64_t code, FILE *out, struct import_counts *counts)
+{
+    switch (result) {
+    case IMPORT_POINT:
+        if (write_code(out, code) != 0)
+            return -1;
+        counts->imported++;
+        break;
+    case IMPORT_ZERO:
+        counts->skipped_zero++;
+        break;
+    case IMPORT_OUT_OF_RANGE:
+        counts->skipped_out_of_range++;
+        break;
+    case IMPORT_MALFORMED:
+        counts->skipped_malformed++;
+        break;
+    case IMPORT_BLANK:
+        break;
+    }
+    return 0;
+}
+
+/* A polyline row (not blank): malformed unless its column is a whole pair list; then every pair is a point.
+ * lonlat has room for IMPORT_MAX_PAIRS pairs. Returns 0, or -1 on a write error. */
+static int polyline_row(const char *line, size_t length, const struct import_options *options, double *lonlat,
+                        FILE *out, struct import_counts *counts)
+{
+    const char *field;
+    size_t field_length;
+    long pairs = -1;
+    if (import_csv_column(line, length, options->delim, options->polyline_col, &field, &field_length) == 0)
+        pairs = import_parse_polyline(field, field_length, lonlat, IMPORT_MAX_PAIRS);
+    if (pairs < 0)
+        return take(IMPORT_MALFORMED, 0, out, counts);
+    for (long k = 0; k < pairs; k++) {
+        uint64_t code = 0;
+        counts->points++;
+        enum import_result result = import_point(lonlat[2 * k], lonlat[2 * k + 1], &code); /* sets code first */
+        if (take(result, code, out, counts) != 0)
+            return -1;
+    }
+    return 0;
+}
+
 int import_stream(FILE *in, FILE *out, const struct import_options *options, struct import_counts *counts)
 {
-    struct line_reader reader = {in, malloc(READ_SIZE + 1), 0, 0, 0};
-    if (reader.buf == NULL)
-        return -1;
-
+    int polyline = options->polyline_col != 0;
+    struct line_reader reader = {in, malloc(READ_SIZE + 1), 0, 0, 0,
+                                 polyline ? IMPORT_MAX_POLYLINE_LINE : IMPORT_MAX_LINE};
+    double *lonlat = polyline ? malloc(2 * IMPORT_MAX_PAIRS * sizeof *lonlat) : NULL;
     int status = 0;
+    if (reader.buf == NULL || (polyline && lonlat == NULL)) {
+        status = -1;
+        goto done;
+    }
+
     unsigned long line_number = 0;
     char *line;
     size_t length;
@@ -149,33 +307,29 @@ int import_stream(FILE *in, FILE *out, const struct import_options *options, str
         if (++line_number <= options->skip)
             continue;
 
-        uint64_t code = 0;
-        enum import_result result = got == LINE_TOO_LONG ? IMPORT_MALFORMED : import_row(line, length, options, &code);
-        if (result == IMPORT_BLANK)
-            continue;
-        counts->rows++;
-        switch (result) {
-        case IMPORT_POINT:
-            if (write_code(out, code) != 0) {
-                status = -1;
-                goto done;
-            }
-            counts->imported++;
-            break;
-        case IMPORT_ZERO:
-            counts->skipped_zero++;
-            break;
-        case IMPORT_OUT_OF_RANGE:
-            counts->skipped_out_of_range++;
-            break;
-        case IMPORT_MALFORMED:
-            counts->skipped_malformed++;
-            break;
-        case IMPORT_BLANK: /* skipped above */
-            break;
+        if (got == LINE_TOO_LONG) {
+            counts->rows++;
+            status = take(IMPORT_MALFORMED, 0, out, counts);
+        } else if (polyline) {
+            if (length > 0 && line[length - 1] == '\r') /* one '\r', as import_row */
+                line[--length] = '\0';
+            if (length == 0)
+                continue; /* blank: not a row */
+            counts->rows++;
+            status = polyline_row(line, length, options, lonlat, out, counts);
+        } else {
+            uint64_t code = 0;
+            enum import_result result = import_row(line, length, options, &code);
+            if (result == IMPORT_BLANK)
+                continue;
+            counts->rows++;
+            status = take(result, code, out, counts);
         }
+        if (status != 0)
+            break;
     }
 done:
+    free(lonlat);
     free(reader.buf);
     return status;
 }

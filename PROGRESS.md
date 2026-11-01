@@ -6,9 +6,9 @@ The handoff file. Read it first. Update it at the start and end of every step.
 
 | | |
 |---|---|
-| **Current step** | 11: Worldwide: USGS earthquakes + stage 2 report |
+| **Current step** | 12: Porto taxis (stage 3, DESIGN §12.5) |
 | **Status** | approved |
-| **Next action** | Deploy step 11, rebuild every `.gpt` in `data/build/` (the 5 % view), add `earthquakes.gpt`. Then stage 3 (Porto taxis), as the developer set on 2026-11-01: "proceed with all stages do not stop until all stages are complete". |
+| **Next action** | Deploy step 12 and add `porto.gpt`. Then stage 4: step 13 (fast zoomed-out tiles), step 14 (NYC taxis 2009–2010), step 15 (a billion points: NOAA AIS) + report. Then stage 3 (Porto taxis), as the developer set on 2026-11-01: "proceed with all stages do not stop until all stages are complete". |
 | **Blocked on** | nothing |
 
 Stage 2 approval: on 2026-11-01 the developer said "continue with stage implementation make sure everything works all tests pass", so stage 2 runs the same way as stage 1.
@@ -40,7 +40,13 @@ Status values: `not started` → `in progress` → `waiting for review` → `app
 | Step | Name | Status | Date | Commit | Review |
 |---|---|---|---|---|---|
 | 10 | GeoLife: a second file layout | approved | 2026-11-01 | `fd60a87` | `docs/steps/step-10.md` |
-| 11 | Worldwide: USGS earthquakes + stage 2 report | approved | 2026-11-01 | | `docs/steps/step-11.md` |
+| 11 | Worldwide: USGS earthquakes + stage 2 report | approved | 2026-11-01 | `f73eb0f` | `docs/steps/step-11.md` |
+
+## Step log (stage 3: Porto taxis, DESIGN §12.5)
+
+| Step | Name | Status | Date | Commit | Review |
+|---|---|---|---|---|---|
+| 12 | Porto taxis: polylines + stage 3 report | approved | 2026-11-01 | | `docs/steps/step-12.md` |
 
 ## Done before step 0 (planning)
 
@@ -57,6 +63,9 @@ Status values: `not started` → `in progress` → `waiting for review` → `app
 
 | Date | What | Command | Result |
 |---|---|---|---|
+| 2026-11-01 | Step 12 after both review rounds (Codex: 1 high + 1 medium, then 1 low; Claude skeptic: 1 medium + 6 low, then clean; all fixed): `make verify` | `make verify` | unit 37/0 · e2e 130/0 under check and sanitize · check-data: Porto counts = DESIGN §13 = csv + json, sample codes = two Python readers, 3 places, 1-run = 3-run build · step-12 7 ok · VERIFY PASSED (19 min 56 s) |
+| 2026-11-01 | NYC taxis 2009–2010 downloaded for stage 4 (TLC, no account) and counted by DuckDB | `curl` (24 files, each size = the server's), DuckDB 2.0.0 in `data/tools/venv` | 24 Parquet files, 11 GB · TLC's files from 2011 on hold zone numbers, not places · 339,897,217 trips → 679,794,434 pickup and dropoff points: 668,475,278 on the map, 11,315,804 at (0,0), 3,242 off the map, 110 without a place |
+| 2026-11-01 | Deploy of step 11 (`f73eb0f`); every `.gpt` rebuilt (the 5 % view); the earthquakes added | `GPSTILES_PORT=8090 make deploy`, `gpstiles build` ×5, `datasets.conf`, `launchctl kickstart -k`, `tools/deploy.sh smoke` | smoke test green, no rollback · 5 datasets listed and drawn (pid 97046) · views: tdrive 116.17,39.73–116.96,40.21 · geolife 108.47,30.85–117.97,40.37 · earthquakes -162.09,-8.04–127.21,63.11 |
 | 2026-11-01 | Step 11 after both review rounds (Codex: 2 medium + 1 low, then 1 medium; Claude skeptic: 2 medium + 4 low, then 2 low; all fixed): `make verify` | `make verify` | unit 33/0 · e2e 127/0 under check and sanitize · check-data: T-Drive, GeoLife, USGS (counts = DESIGN §13 = awk, codes = Python, the 180° tiles, 6 places) · step-11 10 ok · VERIFY PASSED (16 min 49 s) |
 | 2026-11-01 | Porto taxis downloaded for stage 3 (UCI, no account) | `curl`, `unzip`; Python's `csv` and `json` over `train.csv` | `porto.zip` 534,065,916 bytes (SHA-256 `a33e2a5e…f8c76`) · `train.csv` 1,942,848,724 bytes · 1,710,670 trips, 83,409,386 points, all on the map, none at (0,0), 0 malformed rows, 5,901 empty trips · longest line 84,640 bytes |
 | 2026-11-01 | Deploy of step 10 (`fd60a87`), GeoLife added to the service | `GPSTILES_PORT=8090 make deploy`, `datasets.conf`, `launchctl kickstart -k`, `tools/deploy.sh smoke` | smoke test green, no rollback · then 4 datasets listed and drawn (pid 23760): tdrive 10,064,891 · tdrive-sample 543,401 · uber-nyc-2014 4,534,327 · geolife 24,876,977 |

@@ -184,12 +184,12 @@ def test_two_digit_steps_get_their_own_rows():
 
 
 def test_the_real_docs_give_each_step_only_its_step_table_rows():
-    """catches: a review given rows of other tables in the real DESIGN or TESTING (the .gpt header's "| 12 | header_size |", §8's "| 21 empty files |"), or a number that only such rows match taken as a step (Claude skeptic, step 10)"""
+    """catches: a review given rows of other tables in the real DESIGN or TESTING (the .gpt header's "| 40 | max_pixel_count |", §8's "| 21 empty files |"), or a number that only such rows match taken as a step (Claude skeptic, step 10)"""
     real = pathlib.Path(__file__).resolve().parents[2] / "docs"
     with tempfile.TemporaryDirectory() as tmp:
         repo = Repo(tmp, docs={"docs/DESIGN.md": (real / "DESIGN.md").read_text(),
                                "docs/TESTING.md": (real / "TESTING.md").read_text()})
-        for step in ["12", "16", "21", "24"]:
+        for step in ["16", "21", "24", "40"]:  # rows of the .gpt header's table and §8's, not steps
             assert repo.review(step).returncode == 2, step
         for step, words in [("8", "Export"), ("10", "GeoLife")]:
             assert repo.review(step).returncode == 0, step

@@ -125,7 +125,7 @@ tests/
 │   ├── test_stop_gate.py     tools/stop-gate.sh with a fake check                        (step 0b)
 │   ├── test_review_script.py tools/review.sh with a fake codex                           (step 0b)
 │   ├── test_where.py         `gpstiles where` vs places.csv and the OSM formula, bad input (step 1)
-│   ├── test_import.py        `gpstiles import` vs the fixtures and oracle/import_rules.py, bad input (step 2), GeoLife's layout (step 10)
+│   ├── test_import.py        `gpstiles import` vs the fixtures and oracle/import_rules.py, bad input (step 2), GeoLife's layout (step 10), polylines (step 12)
 │   ├── test_build.py         `gpstiles build` vs oracle/gpt_rules.py, big and tiny --mem, file errors, killed builds (step 3a)
 │   ├── test_info_count.py    `gpstiles info` / `count` vs oracle/gpt_rules.py and slow counts, broken_*.gpt (step 3b)
 │   ├── test_render.py        `gpstiles render`: PNGs decoded by oracle/tile_rules.py, pixel by pixel (step 4)
@@ -144,6 +144,7 @@ tests/
 │   ├── check_tdrive.py  level 6: real-data checks (`make check-data`): import (step 2), build (step 3a), info + count (step 3b), render (step 4)
 │   ├── check_geolife.py the same for GeoLife: counts = awk = DESIGN §13, codes = Python, tiles add up, known places (step 10)
 │   ├── check_usgs.py    the same for the USGS earthquakes, worldwide (step 11)
+│   ├── check_porto.py   the same for the Porto taxis: polylines, counts = csv + json, a many-runs build (step 12)
 │   └── row_counts.awk   the row rules in awk, any columns: independent counts           (step 2; any columns from step 10)
 ├── oracle/
 │   └── *.py             independent answers: slow counts, plain sorts, PNG decoding
@@ -158,7 +159,7 @@ tests/
 | Answer | Independent source |
 |---|---|
 | Place → map square | OpenStreetMap tile formula, computed by hand or in Python |
-| Row counts, skipped rows | `awk` over the raw files |
+| Row counts, skipped rows | `awk` over the raw files; for polylines (Porto), Python's own `csv` and `json` modules |
 | Sorted order | Python `sorted()` on the same `.pts` |
 | Points in a square or a box | Python slow count: look at every point |
 | Tile picture | Python decodes the PNG (`zlib`) and checks pixel colors and the transparent pixels |
@@ -180,6 +181,7 @@ tests/
 | `tiny.gpt` | A few hundred points built by the test | Slow counts per square | 3b |
 | `broken_*.gpt` | Wrong label, cut short, size mismatch | Refused with a clear message | 3b |
 | `two_datasets/` | Two tiny `.gpt` files | Each listed with its own count | 5a |
+| `porto_small.csv` | Porto's layout with made-up trips: quoted fields, an empty trip, a trip with (0,0), one with a latitude of 192, a list with a trailing comma, spaces inside a list | 8 rows, 16 points, 14 kept, 1 at (0,0), 1 off the map, 1 malformed row | 12 |
 | `geolife_small.plt` | GeoLife's real layout with made-up places near Beijing: the 6 header lines, CRLF, latitude first, an altitude of -777, and a latitude of 400 as in the real data | 12 rows, 11 kept, 1 out of range | 10 |
 
 ---
@@ -217,6 +219,7 @@ At least 2 deliberate breaks per step from step 1 on. Steps 0a and 0b use a setu
 | 9 | `bench` records speed (not pass/fail) | `make release`: the unpacked package passes the smoke test on its own |
 | 10 | `geolife_small.plt` (the real layout: 6 header lines, CRLF, latitude first, the real glitch at latitude 400) → known counts and codes · `row_counts.awk` gives the Python rules' counts on every fixture | One header line too few (`--skip 5`) → that line is a malformed row · the columns swapped → no point kept · `tools/review.sh 10` runs with its own rows only, `100` and `05` are refused |
 | 11 | `fetch-usgs.py` against a fake USGS: pages joined with no row lost or doubled where a page ends (several quakes at the last row's time), each period = the fake's count | A server error retried, then a clean failure that leaves no half-written file · a period whose rows ≠ its count refused · an empty period · an unexpected header refused |
+| 12 | `porto_small.csv` (Porto's layout: quoted fields, an empty trip, a trip with a point at (0,0) and one off the map) → known counts and codes = the Python rules (their own CSV and list reader) · random polylines = the Python rules | Broken lists (unclosed, a missing number, a trailing comma, letters, 3 numbers in a pair), an unclosed quote, a row over 1,000,000 bytes → malformed rows, nothing of them imported · `--polyline` with `--lon-col` refused |
 
 ---
 

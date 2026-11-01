@@ -156,6 +156,82 @@ def test_row_counts_awk_gives_the_python_rules_counts():
             assert awk.returncode == 0 and awk.stdout == rules.counts_line(counts) + "\n", (name, skip, awk, counts)
 
 
+def assert_polylines_match_oracle(tmp, files, col=9, skip=1, delim=b","):
+    """Runs import --polyline and checks the counts line and every code against the Python rules."""
+    out = pathlib.Path(tmp) / "out.pts"
+    option = "tab" if delim == b"\t" else delim.decode()
+    result = subprocess.run([os.environ["GPSTILES_BIN"], "import", "--polyline", str(col), "--skip", str(skip),
+                             "--delim", option, "-o", str(out), *map(str, files)], capture_output=True, text=True,
+                            timeout=60)
+    assert result.returncode == 0 and result.stderr == "", result
+    counts, codes = rules.polyline_files(files, col, delim, skip=skip)
+    assert result.stdout == rules.polyline_counts_line(counts) + "\n", (result.stdout, counts)
+    assert read_codes(out) == codes, "codes differ from the Python rules"
+    return counts
+
+
+def test_porto_small_polylines_give_their_known_counts_and_codes():
+    """catches: Porto's layout read wrong (step 12): the quoted list split at its commas, an empty trip or a broken list miscounted, a (0,0) or faraway pair kept, or the header read as a trip"""
+    with tempfile.TemporaryDirectory() as tmp:
+        counts = assert_polylines_match_oracle(tmp, [FIXTURES / "porto_small.csv"] * 2)
+        assert counts == dict(rows=16, points=32, imported=28, skipped_zero=2, skipped_out_of_range=2,
+                              skipped_malformed=2), counts
+
+
+def test_random_polylines_match_the_python_rules():
+    """catches: any disagreement with DESIGN §8's polyline rules on rows the hand-written tests didn't think of: quotes, spaces, broken lists, numbers at the map's edges"""
+    seed = int(os.environ.get("TEST_SEED") or 1)
+    rng = random.Random(seed)
+    numbers = ["-8.6", "41.1", "0", "-0", "180", "-180", "85.05112877980659", "85.0511287798066", "1e999", ".5", "5.",
+               "+1", "1e2", "x", "", "1 2", "0x1", "1" * 63, "1" * 64, "0." + "0" * 61]  # 63 characters fit, 64 don't
+    def pair():
+        a, b = rng.choice(numbers), rng.choice(numbers)
+        return rng.choice(["[{}, {}]", "[{},{}]", "[ {} ,{} ]", "[{}]", "[{},{},{}]"]).format(a, b, a)
+    lines = []
+    for _ in range(2000):
+        body = "[" + rng.choice([",", ", ", " ,"]).join(pair() for _ in range(rng.randrange(0, 5))) + "]"
+        body = rng.choice([body, body, body, body[:-1], body + ",", " " + body + " "])
+        field = rng.choice(['"' + body + '"', '"' + body + '"', body, '"' + body, '"' + body + '"x'])
+        tail = rng.choice(["", "", ",tail", ',"open', ',"x"y', ',"ok",z'])  # a broken quote after the list too
+        lines.append(rng.choice(["1,", '"a,b",', '"q""q",', ""]) + field + tail + rng.choice(["", "", "\r", "\r\r"]))
+    lines += ["", "\r", "\r\r"]
+    rng.shuffle(lines)
+    with tempfile.TemporaryDirectory() as tmp:
+        path = write(tmp, "random.csv", "\n".join(lines).encode())
+        for col in (1, 2):
+            try:
+                counts = assert_polylines_match_oracle(tmp, [path], col=col, skip=0)
+            except AssertionError:
+                print(f"seed={seed}")
+                raise
+            assert counts["imported"] > 0 and counts["skipped_malformed"] > 0, counts
+
+
+def test_polylines_with_other_delimiters_quoted_or_not():
+    """catches: a polyline row that only works with commas (the delimiter ignored), or an unquoted list refused when the delimiter isn't in it (Codex, step 12)"""
+    with tempfile.TemporaryDirectory() as tmp:
+        for delim in (b";", b"\t", b"|"):
+            rows = [b"trip" + delim + b"[[-8.61,41.14],[-8.62,41.15]]", b"trip" + delim + b'"[[-8.6,41.1]]"' + delim + b"x",
+                    b'"a' + delim + b'b"' + delim + b"[]", b"trip" + delim + b"[[0,0],[1,2]]", b"trip" + delim + b"[[1,2],]"]
+            path = write(tmp, "d.csv", b"\n".join(rows) + b"\n")
+            counts = assert_polylines_match_oracle(tmp, [path], col=2, skip=0, delim=delim)
+            assert counts == dict(rows=5, points=5, imported=4, skipped_zero=1, skipped_out_of_range=0,
+                                  skipped_malformed=1), (delim, counts)
+
+
+def test_polyline_arguments_are_checked():
+    """catches: --polyline mixed with --lon-col (one column or two?), a delimiter that is part of the list's syntax, or column 0 taken"""
+    with tempfile.TemporaryDirectory() as tmp:
+        fixture = str(FIXTURES / "porto_small.csv")
+        for extra in (["--polyline", "9", "--lon-col", "1"], ["--polyline", "9", "--lat-col", "2"],
+                      ["--polyline", "9", "--delim", '"'], ["--polyline", "9", "--delim", "["],
+                      ["--polyline", "0"], ["--polyline", "x"]):
+            result = subprocess.run([os.environ["GPSTILES_BIN"], "import", *extra, "-o", str(pathlib.Path(tmp) / "o.pts"),
+                                     fixture], capture_output=True, text=True, timeout=30)
+            assert result.returncode == 2 and result.stderr, (extra, result)
+            assert not (pathlib.Path(tmp) / "o.pts").exists()
+
+
 def test_number_edges_follow_the_rules():
     """catches: the map edge refused, a value past it kept, "1e999" or "-0" mishandled, or a NUL byte hiding junk"""
     with tempfile.TemporaryDirectory() as tmp:
