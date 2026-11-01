@@ -18,7 +18,7 @@
 #define BUILD_MERGE_MIN 512     /* shrunk to chunk / runs (at least 4 KiB) to stay within --mem */
 
 /* Stats are 0 when count is 0. A pixel at zoom z is 1/256 of a tile's side: the top 2(z+8) bits
- * of a code. The view box is the middle 98% of points on each axis (1% cut from each end), widened
+ * of a code. The view box is the middle 90% of points on each axis (5% cut from each end), widened
  * to 65,536-unit histogram buckets. */
 struct build_header {
     uint64_t count;

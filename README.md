@@ -49,6 +49,17 @@ build/gpstiles serve data/build/tdrive.gpt               # then open http://127.
 
 Your own data: any text file with a longitude and a latitude column. `--lon-col` and `--lat-col` count columns from 1, `--delim tab` reads TSV, `--skip 1` skips a header line in each file.
 
+## More datasets (stage 2)
+
+Any CSV-like file works: name the longitude and latitude columns (counted from 1) and the header lines to skip in each file.
+
+| Dataset | Get it | Import (`build` and `serve` as above) |
+|---|---|---|
+| GeoLife: 182 people's GPS traces, mostly Beijing (24.9 million points) | `Geolife Trajectories 1.3.zip` from Microsoft's download centre (no account), unzipped into `data/raw/geolife/` | from inside `data/raw/geolife/Geolife Trajectories 1.3/Data`: `gpstiles import --lat-col 1 --lon-col 2 --skip 6 -o geolife.pts */Trajectory/*.plt` |
+| USGS earthquakes since 1900, worldwide (4.8 million) | `tools/fetch-usgs.py data/raw/usgs` (USGS's own service, no account; about 40 minutes; each year checked against USGS's count) | from inside `data/raw/usgs`: `gpstiles import --lat-col 2 --lon-col 3 --skip 1 -o earthquakes.pts usgs-*.csv` |
+
+With very many files, run the import from inside their folder (shorter names), or import them in batches into several `.pts` files and give them all to `build`.
+
 ## Commands
 
 | Command | Does |

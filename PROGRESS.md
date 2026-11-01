@@ -6,9 +6,9 @@ The handoff file. Read it first. Update it at the start and end of every step.
 
 | | |
 |---|---|
-| **Current step** | 10: GeoLife (stage 2, DESIGN §12.4) |
+| **Current step** | 11: Worldwide: USGS earthquakes + stage 2 report |
 | **Status** | approved |
-| **Next action** | Deploy step 10 (port 8090) and add `geolife.gpt` to the service. Then step 11: USGS worldwide (the data is downloaded), the opening view rule B, the stage 2 report. |
+| **Next action** | Deploy step 11, rebuild every `.gpt` in `data/build/` (the 5 % view), add `earthquakes.gpt`. Then stage 3 (Porto taxis), as the developer set on 2026-11-01: "proceed with all stages do not stop until all stages are complete". |
 | **Blocked on** | nothing |
 
 Stage 2 approval: on 2026-11-01 the developer said "continue with stage implementation make sure everything works all tests pass", so stage 2 runs the same way as stage 1.
@@ -39,8 +39,8 @@ Status values: `not started` → `in progress` → `waiting for review` → `app
 
 | Step | Name | Status | Date | Commit | Review |
 |---|---|---|---|---|---|
-| 10 | GeoLife: a second file layout | approved | 2026-11-01 | | `docs/steps/step-10.md` |
-| 11 | Worldwide: USGS earthquakes + stage 2 report | not started | | | |
+| 10 | GeoLife: a second file layout | approved | 2026-11-01 | `fd60a87` | `docs/steps/step-10.md` |
+| 11 | Worldwide: USGS earthquakes + stage 2 report | approved | 2026-11-01 | | `docs/steps/step-11.md` |
 
 ## Done before step 0 (planning)
 
@@ -57,6 +57,9 @@ Status values: `not started` → `in progress` → `waiting for review` → `app
 
 | Date | What | Command | Result |
 |---|---|---|---|
+| 2026-11-01 | Step 11 after both review rounds (Codex: 2 medium + 1 low, then 1 medium; Claude skeptic: 2 medium + 4 low, then 2 low; all fixed): `make verify` | `make verify` | unit 33/0 · e2e 127/0 under check and sanitize · check-data: T-Drive, GeoLife, USGS (counts = DESIGN §13 = awk, codes = Python, the 180° tiles, 6 places) · step-11 10 ok · VERIFY PASSED (16 min 49 s) |
+| 2026-11-01 | Porto taxis downloaded for stage 3 (UCI, no account) | `curl`, `unzip`; Python's `csv` and `json` over `train.csv` | `porto.zip` 534,065,916 bytes (SHA-256 `a33e2a5e…f8c76`) · `train.csv` 1,942,848,724 bytes · 1,710,670 trips, 83,409,386 points, all on the map, none at (0,0), 0 malformed rows, 5,901 empty trips · longest line 84,640 bytes |
+| 2026-11-01 | Deploy of step 10 (`fd60a87`), GeoLife added to the service | `GPSTILES_PORT=8090 make deploy`, `datasets.conf`, `launchctl kickstart -k`, `tools/deploy.sh smoke` | smoke test green, no rollback · then 4 datasets listed and drawn (pid 23760): tdrive 10,064,891 · tdrive-sample 543,401 · uber-nyc-2014 4,534,327 · geolife 24,876,977 |
 | 2026-11-01 | Step 10 after both review rounds (Codex: 1 medium, then clean; Claude skeptic: 2 medium + 6 low, all fixed, then clean): `make verify` | `make verify` | unit 33/0 · e2e 123/0 under check and sanitize · check-data: T-Drive as before, GeoLife counts = DESIGN §13 = awk, sample codes = Python, 4 places = Python · step-10 7 ok · VERIFY PASSED (13 min 55 s) |
 | 2026-11-01 | USGS earthquakes downloaded for step 11 | `fetch-usgs.py data/raw/usgs` (the step-11 tool, from the builder's scratchpad) | 58 files, 4,771,181 rows, each period = USGS's own count (`MANIFEST.txt`), no id twice, 834 MB · `awk` and `gpstiles import`: imported=4770607 skipped_zero=9 skipped_out_of_range=565 (all north of 85.05°) |
 | 2026-10-31 | Third local dataset, for English map labels (developer's choice): NYC Uber pickups, April–September 2014, FiveThirtyEight's public copy (`github.com/fivethirtyeight/uber-tlc-foil-response`, `uber-trip-data/uber-raw-data-{apr..sep}14.csv`, 6 files, 209,715,627 bytes) in `data/raw/uber-nyc-2014/` | `gpstiles import --lon-col 3 --lat-col 2 --skip 1`, `build`, `info`; `awk` over the CSVs; the live count API | rows 4,534,327 = awk, all kept (0 at 0,0, 0 out of range, 0 malformed) · `uber-nyc-2014.gpt` 36,274,872 bytes, bounds = awk's min/max · JFK box `-73.83005,40.62005,-73.74005,40.67005`: 107,680 = awk · added to `datasets.conf`, service restarted: smoke test green, 3 datasets · the page in Chrome: English street names, 30/30 base tiles |
@@ -91,7 +94,7 @@ Status values: `not started` → `in progress` → `waiting for review` → `app
 |---|---|---|
 | ~~DESIGN §9.4, §9.3, §8 and TESTING §7 wording~~ | — | Applied in step 3b (see `docs/steps/step-3b.md` Decisions) |
 | Store time per point? | Before stage 4 | Changes the `.gpt` format. DESIGN section 14 |
-| ~~Opening view for spread-out data (DESIGN §9.3)~~ | — | Developer chose B on 2026-11-01: drop 5 % of the points at each end instead of 1 % (GeoLife opened on most of the northern world). Applied in step 11. See `docs/steps/step-10.md` Decisions |
+| ~~Opening view for spread-out data (DESIGN §9.3)~~ | — | Developer chose B on 2026-11-01: drop 5 % of the points at each end instead of 1 % (GeoLife opened on most of the northern world). Applied in step 11 (`docs/steps/step-11.md`) |
 | Base map provider for the page | Developer to confirm | Step 6 uses OpenStreetMap's standard tiles, darkened by CSS (CARTO's dark tiles need an account). A one-line change in `www/app.js` plus the CSP |
 | Box rule wording (DESIGN §9.2) | Developer to confirm | Longitude 180 as a box edge = the world's last unit; bbox at most 127 characters, each number at most 63. See `docs/steps/step-7.md` Decisions |
 | A total time limit on exports | Developer to confirm | None in step 8, on purpose: a client that keeps reading is served; one that pauses 3 × timeout is let go. See `docs/steps/step-8.md` Decisions |

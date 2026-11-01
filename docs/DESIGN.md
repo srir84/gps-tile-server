@@ -377,7 +377,7 @@ flowchart TD
 | 16 | count | uint64 | Number of points |
 | 24 | bounds | 4 × uint32 | Min x, min y, max x, max y (world units) of all points |
 | 40 | max_pixel_count | 25 × uint64 | Densest pixel at each zoom 0–24 (color scale). A pixel at zoom z is 1/256 of a tile side: the top 2(z + 8) bits of a code |
-| 240 | view box | 4 × uint32 | Where the map opens (ignores far-away junk): min x, min y, max x, max y after dropping `count / 100` points (rounded down) at each end of x and of y, widened to whole 65,536-unit buckets |
+| 240 | view box | 4 × uint32 | Where the map opens (ignores far-away junk and a few far trips): min x, min y, max x, max y after dropping `count / 20` points (rounded down) at each end of x and of y, widened to whole 65,536-unit buckets. 5 %, not 1 %, since step 11 (the developer's choice B): with 1 %, GeoLife's 1.3 % in North America opened it on most of the northern world |
 | 256 | points | count × uint64 | Z-order codes, sorted ascending |
 
 With 0 points every stat is 0. A file whose size isn't 256 + 8 × count, whose label, version or header size differ, or whose stats no build could write (min > max, a densest pixel of 0 or above count, or growing with the zoom) is refused. Replace a `.gpt` that may be open only by renaming a new file over it, as `build` does: rewriting it in place can crash a program that has it mapped.
@@ -618,6 +618,9 @@ The goal (`PROJECT_IDEAS.md` §8.5): a second file layout and points spread over
 | GeoLife rows out of range | 1: `020/Trajectory/20110911000506.plt` line 6782, latitude 400.166666666667 | `awk` |
 | GeoLife rows at (0,0), malformed | 0, 0 | `awk` |
 | GeoLife valid points | 24,876,977 | rows − out of range |
+| USGS earthquakes, 1900-01-01 to 2026-10-01 (`eventtype=earthquake`) | 58 files (1900–1969, then a year each), 4,771,181 rows, each file = USGS's count of its period | `tools/fetch-usgs.py`, 2026-11-01 (`MANIFEST.txt`) |
+| USGS rows at (0,0), out of range, malformed | 9, 565 (all nearer the North Pole than 85.05112877980659°, none south), 0 | `awk` |
+| USGS valid points | 4,770,607 | rows − zero − out of range |
 
 ---
 

@@ -158,7 +158,7 @@ static void header_stats_match_slow_counts(void)
     CHECK_EQ_U64(ys[0], h.min_y);
     CHECK_EQ_U64(xs[n - 1], h.max_x);
     CHECK_EQ_U64(ys[n - 1], h.max_y);
-    size_t cut = n / 100; /* the 16th smallest and 16th largest, widened to 65,536-unit buckets */
+    size_t cut = n / 20; /* 5 %: the 76th smallest and 76th largest, widened to 65,536-unit buckets */
     CHECK_EQ_U64(xs[cut] & 0xFFFF0000u, h.view_min_x);
     CHECK_EQ_U64(ys[cut] & 0xFFFF0000u, h.view_min_y);
     CHECK_EQ_U64(xs[n - 1 - cut] | 0xFFFFu, h.view_max_x);
@@ -186,7 +186,7 @@ static void a_known_set_of_points_gives_a_known_header(void)
     CHECK_EQ_U64(0x9ABCDEF0u, h.max_y);
     for (unsigned z = 0; z <= GEO_MAX_ZOOM; z++)
         CHECK_EQ_U64(5, h.max_pixel_count[z]);
-    /* 6 points: 1% of 6 is 0, so the view box is the bounds widened to whole buckets. */
+    /* 6 points: 5% of 6 is 0, so the view box is the bounds widened to whole buckets. */
     CHECK_EQ_U64(0x12340000u, h.view_min_x);
     CHECK_EQ_U64(0x00000000u, h.view_min_y);
     CHECK_EQ_U64(0xF000FFFFu, h.view_max_x);

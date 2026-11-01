@@ -70,6 +70,7 @@ Picking up mid-step: trust the files and `git status`, not memory. Re-run `make 
 - `data/` is never committed. Raw downloads go in `data/raw/`; generated `.pts` / `.gpt` files go in `data/build/`.
 - T-Drive is already downloaded to `data/raw/tdrive/` (zips) and `data/raw/tdrive_txt/` (8,911 text files).
 - GeoLife (step 10) is in `data/raw/geolife/`: the zip from download.microsoft.com and its `Geolife Trajectories 1.3/Data/` (18,670 `.plt` files, DESIGN §13).
+- The USGS earthquakes (step 11) are in `data/raw/usgs/`, fetched by `tools/fetch-usgs.py` (58 files, `MANIFEST.txt`).
 - Datasets that need an account (Kaggle, GBIF, OpenSky): never create accounts yourself. Ask the developer, who registers with [email removed].
 
 ## Docs

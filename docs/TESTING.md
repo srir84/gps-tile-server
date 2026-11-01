@@ -135,6 +135,7 @@ tests/
 │   ├── test_area.py          box counts and hover boxes vs oracle/box_rules.py slow counts; hover and a drawn box in Chrome (step 7)
 │   ├── test_export.py        CSV export vs slow counts, row limit, clients that hang up or stop reading, the page's Export link (step 8)
 │   ├── test_bench.py         `gpstiles bench`: one row per zoom, p50 ≤ p99 ≤ max, the tiles Python expects (step 9)
+│   ├── test_fetch_usgs.py    tools/fetch-usgs.py against a fake USGS: windows, counts, errors, resuming (step 11)
 │   └── test_<feature>.py   real HTTP against a running server                       (step 5a+)
 ├── validate/
 │   ├── lib.sh           shared helpers: scratch copy, the deliberately failing test    (step 0b)
@@ -164,7 +165,7 @@ tests/
 | Row counts in an export | Python reads the CSV and checks each point is inside the box |
 | Known T-Drive numbers | `DESIGN.md` §13 |
 | GeoLife's number of points | its own user guide (Figure 7), and `awk` |
-| USGS rows per period | USGS's own count service, asked for each period by `tools/fetch-usgs.py` (`MANIFEST.txt`) |
+| USGS rows per period | USGS's own count service, asked for each period and each window by `tools/fetch-usgs.py` (`MANIFEST.txt`) |
 
 ---
 

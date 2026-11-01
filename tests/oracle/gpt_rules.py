@@ -74,7 +74,7 @@ def header(codes):
     # A pixel at zoom z is 1/256 of a tile: a zoom z + 8 tile, the top 2(z + 8) bits of the code.
     max_pixel = [max(collections.Counter(map(operator.rshift, codes, itertools.repeat(48 - 2 * z))).values())
                  for z in range(MAX_ZOOM + 1)]
-    cut = n // 100  # the middle 98%: drop 1% at each end, then widen to 65,536-unit buckets
+    cut = n // 20  # the middle 90%: drop 5% at each end, then widen to 65,536-unit buckets
     view = (xs[cut] & ~0xFFFF, ys[cut] & ~0xFFFF, xs[n - 1 - cut] | 0xFFFF, ys[n - 1 - cut] | 0xFFFF)
     return dict(count=n, bounds=(xs[0], ys[0], xs[-1], ys[-1]), max_pixel=max_pixel, view=view)
 

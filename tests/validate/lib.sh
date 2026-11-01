@@ -99,3 +99,29 @@ geolife_gpt() {
     echo "$now" > "$key"
     GEOLIFE_COUNTS=$(cat "$counts")
 }
+
+# The USGS earthquakes (step 11): tools/fetch-usgs.py's files and MANIFEST.txt.
+USGS_DATA="$ROOT/data/raw/usgs"
+
+# Imports and builds the earthquakes into build/validate/earthquakes.gpt the same way, kept while the options and the
+# files are the same. Sets USGS_PTS, USGS_GPT and USGS_COUNTS. Needs $USGS_DATA/MANIFEST.txt.
+usgs_gpt() {
+    USGS_PTS=$ROOT/build/validate/earthquakes.pts
+    USGS_GPT=$ROOT/build/validate/earthquakes.gpt
+    local counts=$ROOT/build/validate/earthquakes.counts key=$ROOT/build/validate/earthquakes.key
+    local options="--lat-col 2 --lon-col 3 --skip 1" now
+    now=$(cd "$USGS_DATA" && { echo "$options"; ls -lnT usgs-*.csv; } | shasum -a 256) || fail "can't list the USGS files"
+    if [ "$USGS_GPT" -nt "$ROOT/build/gpstiles" ] && [ "$USGS_PTS" -nt "$ROOT/build/gpstiles" ] &&
+        [ "$counts" -nt "$ROOT/build/gpstiles" ] && [ "$(cat "$key" 2> /dev/null)" = "$now" ]; then
+        USGS_COUNTS=$(cat "$counts")
+        return 0
+    fi
+    mkdir -p "$ROOT/build/validate" || exit 1
+    rm -f "$USGS_PTS" "$USGS_GPT" "$counts" "$key"
+    # shellcheck disable=SC2086 # $options is several words
+    (cd "$USGS_DATA" && "$ROOT/build/gpstiles" import $options -o "$USGS_PTS" usgs-*.csv > "$counts") ||
+        fail "USGS import failed"
+    "$ROOT/build/gpstiles" build -o "$USGS_GPT" "$USGS_PTS" > /dev/null || fail "USGS build failed"
+    echo "$now" > "$key"
+    USGS_COUNTS=$(cat "$counts")
+}

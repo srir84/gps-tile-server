@@ -242,7 +242,7 @@ static uint32_t bucket_of_rank(const uint64_t *hist, uint64_t rank)
 
 static void set_view_box(struct build_header *h, const uint64_t *hist_x, const uint64_t *hist_y)
 {
-    uint64_t cut = h->count / 100; /* 1% from each end */
+    uint64_t cut = h->count / 20; /* 5% from each end (DESIGN §9.3: 1% let GeoLife's travels set the view) */
     h->view_min_x = bucket_of_rank(hist_x, cut) << 16;
     h->view_min_y = bucket_of_rank(hist_y, cut) << 16;
     h->view_max_x = bucket_of_rank(hist_x, h->count - 1 - cut) << 16 | 0xFFFF;
