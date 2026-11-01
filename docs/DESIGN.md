@@ -638,7 +638,7 @@ The goal (`PROJECT_IDEAS.md` §8.5): "Over 1 billion points; build must work out
 |---|---|---|---|
 | 13 | `render_count` by splitting dense cells; `tests/validate/step-13.sh` | `gpstiles bench` on Porto; at every zoom, the tiles under 16 points of each dataset in `build/validate/` and `data/build/` against the program before this step | zoomed-out tiles of Porto under 5 ms (were 164 ms) · the same PNG bytes |
 | 14 | `tools/nyc-taxi.py` (Parquet → `lon,lat` rows), `tests/data/check_nyc.py` | import, `build`, the API in Manhattan | counts = DuckDB (§13) |
-| 15 | `tools/fetch-ais.sh`, `tests/data/check_ais.py`, the stage 4 report | import, `build --mem 2G`, `bench` | counts = `awk` · a billion points in milliseconds |
+| 15 | `tools/fetch-ais.sh`, `tests/data/check_ais.py`, the stage 4 report | import day by day, `build` (the default 1 GiB buffer: several runs), `bench` with the file in the disk cache | counts = `awk` · a billion points in milliseconds |
 
 ---
 
@@ -664,6 +664,7 @@ The goal (`PROJECT_IDEAS.md` §8.5): "Over 1 billion points; build must work out
 | USGS rows at (0,0), out of range, malformed | 9, 565 (all nearer the North Pole than 85.05112877980659°, none south), 0 | `awk` |
 | USGS valid points | 4,770,607 | rows − zero − out of range |
 | Porto archive | `taxi+service+trajectory+prediction+challenge+ecml+pkdd+2015.zip` (UCI): 534,065,916 bytes, SHA-256 `a33e2a5e145607ae2bad0db5d21b7548c88b7e0f9db1ce15839f24c4c61f8c76`; inside, `train.csv.zip` → `train.csv`, 1,942,848,724 bytes | archive.ics.uci.edu, 2026-11-01 |
+| NOAA AIS January–May 2023 | 151 zips (`AIS_2023_01_01.zip` … `AIS_2023_05_31.zip`, 47.6 GB) from MarineCadastre, 2026-11-01 · `rows=1216355904 imported=1216355854 skipped_zero=0 skipped_out_of_range=39 skipped_malformed=11` | each day's `gpstiles import` added up = `awk` over every day (`row_counts.awk`, LON=4 LAT=3 SKIP=1) |
 | NYC taxis 2009–2010 (TLC) | 24 Parquet files, 11 GB · 339,897,217 trips → 679,794,434 pickup and dropoff points: 668,475,278 on the map, 11,315,804 at (0,0), 3,242 off the map, 110 without a place | DuckDB, 2026-11-01 |
 | Porto trips (rows) and points | 1,710,670 trips (5,901 with no point), 83,409,386 points, all on the map, none at (0,0), no malformed row; longest line 84,640 bytes | Python's `csv` and `json` |
 

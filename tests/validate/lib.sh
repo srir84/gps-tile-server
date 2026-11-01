@@ -189,3 +189,46 @@ nyc_gpt() {
     echo "$now" > "$key"
     NYC_COUNTS=$(cat "$counts")
 }
+
+# NOAA's AIS ship positions (step 15): one zip a day from tools/fetch-ais.sh, each holding one CSV (LAT 3rd, LON 4th).
+AIS_DATA="$ROOT/data/raw/ais"
+
+# Imports every day (streamed from its zip) into build/validate/ais/ (kept: 9.9 GB) and builds them into
+# build/validate/ais-2023.gpt (9.7 GB) with the default --mem, kept while the zips, the program and the options are the
+# same. Sets AIS_GPT, AIS_PTS_DIR, AIS_COUNTS (the days' counts added up) and AIS_BUILD (build's line). About 20
+# minutes. Needs $AIS_DATA's zips.
+ais_gpt() {
+    AIS_GPT=$ROOT/build/validate/ais-2023.gpt
+    AIS_PTS_DIR=$ROOT/build/validate/ais
+    local dir=$AIS_PTS_DIR counts=$ROOT/build/validate/ais-2023.counts key=$ROOT/build/validate/ais-2023.key
+    local options="--lat-col 3 --lon-col 4 --skip 1" now zip day
+    # What the result depends on besides the program: the zips, the options and this function's own code.
+    now=$( { (cd "$AIS_DATA" && ls -lnT AIS_2023_*.zip); echo "$options"; declare -f ais_gpt; } |
+        shasum -a 256) || fail "can't list the AIS zips"
+    if [ "$AIS_GPT" -nt "$ROOT/build/gpstiles" ] && [ "$counts" -nt "$ROOT/build/gpstiles" ] &&
+        [ "$(cat "$key" 2> /dev/null)" = "$now" ] &&
+        [ "$(ls "$dir"/AIS_2023_*.pts 2> /dev/null | wc -l)" = "$(ls "$AIS_DATA"/AIS_2023_*.zip | wc -l)" ]; then
+        AIS_COUNTS=$(sed -n 1p "$counts")
+        AIS_BUILD=$(sed -n 2p "$counts")
+        return 0
+    fi
+    rm -rf "$dir" "$AIS_GPT" "$counts" "$key"
+    mkdir -p "$dir" || exit 1
+    for zip in "$AIS_DATA"/AIS_2023_*.zip; do
+        day=$(basename "$zip" .zip)
+        # shellcheck disable=SC2086 # $options is several words
+        unzip -p "$zip" | "$ROOT/build/gpstiles" import $options -o "$dir/$day.pts" /dev/stdin >> "$dir/days.txt"
+        local status=("${PIPESTATUS[@]}")
+        [ "${status[0]}" = 0 ] && [ "${status[1]}" = 0 ] || { rm -rf "$dir"; fail "AIS import of $day failed"; }
+    done
+    # The days' counts added up, in import's own words.
+    awk '{ for (i = 1; i <= NF; i++) { split($i, kv, "="); sum[kv[1]] += kv[2] } }
+         END { printf "rows=%d imported=%d skipped_zero=%d skipped_out_of_range=%d skipped_malformed=%d\n",
+               sum["rows"], sum["imported"], sum["skipped_zero"], sum["skipped_out_of_range"], sum["skipped_malformed"] }' \
+        "$dir/days.txt" > "$counts"
+    "$ROOT/build/gpstiles" build --tmp "$ROOT/build/validate" -o "$AIS_GPT" "$dir"/AIS_2023_*.pts >> "$counts" ||
+        { rm -rf "$dir" "$counts"; fail "AIS build failed"; }
+    echo "$now" > "$key"
+    AIS_COUNTS=$(sed -n 1p "$counts")
+    AIS_BUILD=$(sed -n 2p "$counts")
+}

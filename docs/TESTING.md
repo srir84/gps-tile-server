@@ -137,6 +137,7 @@ tests/
 │   ├── test_bench.py         `gpstiles bench`: one row per zoom, p50 ≤ p99 ≤ max, the tiles Python expects (step 9)
 │   ├── test_fetch_usgs.py    tools/fetch-usgs.py against a fake USGS: windows, counts, errors, resuming (step 11)
 │   ├── test_nyc_taxi.py      tools/nyc-taxi.py on tiny Parquet files (needs DuckDB in data/tools/venv, else SKIPPED) (step 14)
+│   ├── test_fetch_ais.py     tools/fetch-ais.sh against a fake server: whole days only, resuming (step 15)
 │   └── test_<feature>.py   real HTTP against a running server                       (step 5a+)
 ├── validate/
 │   ├── lib.sh           shared helpers: scratch copy, the deliberately failing test    (step 0b)
@@ -147,6 +148,7 @@ tests/
 │   ├── check_usgs.py    the same for the USGS earthquakes, worldwide (step 11)
 │   ├── check_porto.py   the same for the Porto taxis: polylines, counts = csv + json, a many-runs build (step 12)
 │   ├── check_nyc.py     the same for the NYC taxis 2009–2010: counts and places = DuckDB, 680 million points (step 14)
+│   ├── check_ais.py     NOAA AIS, light: 3 of 151 days = awk, a day's codes and 3 ports = Python (step 15)
 │   └── row_counts.awk   the row rules in awk, any columns: independent counts           (step 2; any columns from step 10)
 ├── oracle/
 │   └── *.py             independent answers: slow counts, plain sorts, PNG decoding
@@ -224,6 +226,7 @@ At least 2 deliberate breaks per step from step 1 on. Steps 0a and 0b use a setu
 | 12 | `porto_small.csv` (Porto's layout: quoted fields, an empty trip, a trip with a point at (0,0) and one off the map) → known counts and codes = the Python rules (their own CSV and list reader) · random polylines = the Python rules | Broken lists (unclosed, a missing number, a trailing comma, letters, 3 numbers in a pair), an unclosed quote, a row over 1,000,000 bytes → malformed rows, nothing of them imported · `--polyline` with `--lon-col` refused |
 | 13 | Random dense tiles (clusters, repeats, every zoom 0–24): the new pixel counts = counting point by point · the old render tests (Python pixel counts) unchanged | A tile with one point, an empty tile, a whole tile in one pixel |
 | 14 | `tools/nyc-taxi.py` on tiny Parquet files made by DuckDB (2009's and 2010's column names; NULL, NaN, infinity, (0,0), the map's edges): known counts (SKIPPED without DuckDB) | Output to a file and a file with zone numbers refused · `make check-data`: counts = DuckDB's own SQL count and DESIGN §13; a build in several runs; Manhattan's tile and 3 places = DuckDB's counts inside their edges · `step-14.sh`: the API at JFK = DuckDB, the page, bench |
+| 15 | `tools/fetch-ais.sh` against a fake server: a whole day kept, a corrupt one (right size) refused with nothing left, a rerun resumes, a missing day, impossible or backwards dates refused, a damaged or empty kept day fetched again, a 2-CSV zip and a size other than stated refused | `make check-data`: 3 days = `awk` (one with skipped rows), a day's every code and 3 ports = Python, 3 days in 4 runs = in 1 · `step-15.sh`: 151 days = DESIGN §13 (`awk`), a build in several runs = with a 2 GiB buffer, tiles add up, the page, p99 at 1.2 billion points |
 
 ---
 

@@ -6,9 +6,9 @@ The handoff file. Read it first. Update it at the start and end of every step.
 
 | | |
 |---|---|
-| **Current step** | 14: NYC taxis 2009–2010 (stage 4, DESIGN §12.6) |
+| **Current step** | 15: A billion points (NOAA AIS) + stage 4 report (DESIGN §12.6) |
 | **Status** | approved |
-| **Next action** | Step 14: `tools/nyc-taxi.py`, NYC's checks, verify, both reviews, commit, deploy. Then step 15 (a billion points: NOAA AIS) + stage 4 report. Then stage 5, as the developer set on 2026-11-01: "proceed with all stages do not stop until all stages are complete". |
+| **Next action** | Step 15: the AIS checks, verify, both reviews, commit, deploy. Then stage 5, as the developer set on 2026-11-01: "proceed with all stages do not stop until all stages are complete". |
 | **Blocked on** | nothing |
 
 Stage 2 approval: on 2026-11-01 the developer said "continue with stage implementation make sure everything works all tests pass", so stage 2 runs the same way as stage 1.
@@ -53,8 +53,8 @@ Status values: `not started` → `in progress` → `waiting for review` → `app
 | Step | Name | Status | Date | Commit | Review |
 |---|---|---|---|---|---|
 | 13 | Fast tiles | approved | 2026-11-01 | `fb1148b` | `docs/steps/step-13.md` |
-| 14 | NYC taxis 2009–2010 | approved | 2026-11-01 | | `docs/steps/step-14.md` |
-| 15 | A billion points (NOAA AIS) + stage 4 report | not started | | | |
+| 14 | NYC taxis 2009–2010 | approved | 2026-11-01 | `f2a31ff` | `docs/steps/step-14.md` |
+| 15 | A billion points (NOAA AIS) + stage 4 report | approved | 2026-11-01 | | `docs/steps/step-15.md` |
 
 ## Done before step 0 (planning)
 
@@ -71,6 +71,9 @@ Status values: `not started` → `in progress` → `waiting for review` → `app
 
 | Date | What | Command | Result |
 |---|---|---|---|
+| 2026-11-01 | Step 15 after both review rounds (Codex: 3 medium + 1 low, then 2 medium + 1 low; Claude skeptic: 3 medium + 7 low, then 5 low; all fixed or answered): `make verify` | `make verify` | unit 38/0 · e2e 136/0 under check and sanitize · check-data: every dataset, AIS 3 days = awk, a 4-run = 1-run build · step-15: 151 days = DESIGN §13, 10-run = 5-run build, p99 under 21 ms at 1.2 billion points · VERIFY PASSED (34 min 39 s) · by hand: all 151 days = awk, a 1-run build = the 10-run file |
+| 2026-11-01 | OpenStreetMap's public GPS traces (2013) downloaded for stage 5 | `curl`, `md5` | `gpx-planet-2013-04-09.tar.xz`, 22,261,751,900 bytes, MD5 `ef0ac17afbaccd3a8f0bce6776a6e675` = the published `.md5` · GPX 1.0, `<trkpt lat=… lon=…>` · `metadata.xml` lists each file's `points` |
+| 2026-11-01 | Deploy of step 14 (`f2a31ff`); NYC added to the service | `GPSTILES_PORT=8090 make deploy`, `datasets.conf`, `launchctl kickstart -k`, `tools/deploy.sh smoke` | smoke test green, no rollback · 7 datasets listed and drawn (pid 29028) |
 | 2026-11-01 | Step 14 after both review rounds (Codex: 2 medium + 1 low, then 1 low; Claude skeptic: 1 medium + 4 low, then 3 low; all fixed): `make verify` | `make verify` | unit 38/0 · e2e 133/0 under check and sanitize · check-data: NYC counts = DESIGN §13 = DuckDB, 5-run build, Manhattan + 3 places = DuckDB · step-14 7 ok (bench worst p99 51 ms at 668 million points) · VERIFY PASSED (30 min 26 s) |
 | 2026-11-01 | NOAA AIS January–May 2023 downloaded, imported and built for step 15 | `fetch-ais.sh` (scratchpad version), per day `unzip -p \| gpstiles import /dev/stdin`, `build` of the 151 `.pts`, `bench` | 151 zips, 45 GB · rows=1216355904 imported=1216355854 skipped_out_of_range=39 skipped_malformed=11 (16 min) · build: 10 runs, 149 s, peak 1.08 GB for 9.7 GB of points · bench: p99 1.4 ms at zoom 0, worst 20.7 ms (zoom 5) at 1.2 billion points |
 | 2026-11-01 | Deploy of step 13 (`fb1148b`) | `GPSTILES_PORT=8090 make deploy` | smoke test green, no rollback · 6 datasets (pid 77079) |
