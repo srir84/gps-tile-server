@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Rules for any agent (Claude, Codex, others) working in this repo. Humans: this is also the quickest way in.
+Instructions for the AI coding agents (Claude, Codex) that build this repo: the workflow, gates and rules every step follows. Visitors: start at [README.md](README.md); step reports are indexed in [docs/steps/](docs/steps/README.md).
 
 ## What this is
 - **gps-tile-server**: turns millions to billions of GPS points into an interactive web map, served by one small C program (`gpstiles`) from one file per dataset.
@@ -32,7 +32,7 @@ Use only these to build, test, review and deploy. Build and test commands exist 
 ## Workflow (every step)
 1. Work only on the step the newest step file's "Next" names (or the developer asks for).
 2. Start `docs/steps/step-N.md` from `docs/steps/TEMPLATE.md`, status `in progress`.
-3. Build the step as `docs/DESIGN.md` section 12.2 (stage 1) or 12.4 (stage 2) describes. Nothing from later steps.
+3. Build the step as `docs/DESIGN.md` section 12 describes for it (§12.2–§12.7, stages 1–5). Nothing from later steps.
 4. Verify: `make verify` green (step 0a: `make check` + `make sanitize`), plus the bug-catching proof (see "Definition of done").
 5. Review: `tools/review.sh N` (in step 0a, before the script exists: `codex exec -s read-only` by hand). Fix each finding or write why not. At most 2 rounds.
 6. Validate: run the step's validation for real (CLI output, headless Chrome screenshot for steps 4 and 6) and look at the result.
@@ -65,7 +65,7 @@ Picking up mid-step: trust the files and `git status`, not memory. Re-run `make 
 - The server listens on 127.0.0.1 by default and is read-only, with limits on request size, connections and export rows.
 - Small, readable diffs. No speculative features.
 
-## Data
+## Data (on the developer's Mac)
 - `data/` is never committed. Raw downloads go in `data/raw/`; generated `.pts` / `.gpt` files go in `data/build/`.
 - T-Drive is already downloaded to `data/raw/tdrive/` (zips) and `data/raw/tdrive_txt/` (8,911 text files).
 - GeoLife (step 10) is in `data/raw/geolife/`: the zip from download.microsoft.com and its `Geolife Trajectories 1.3/Data/` (18,670 `.plt` files, DESIGN §13).
@@ -75,8 +75,8 @@ Picking up mid-step: trust the files and `git status`, not memory. Re-run `make 
 - NOAA's AIS ship positions, January–May 2023 (step 15), are in `data/raw/ais/` (151 zips from `tools/fetch-ais.sh`).
 - OpenStreetMap's GPS traces of 2013 (step 16) are in `data/raw/osm-gps/` (the `tar.xz`, its `.md5`, and `metadata.xml` taken out of it).
 - OpenSky's public aircraft positions of Monday 2022-06-27 (step 17) are in `data/raw/opensky/` (24 hourly tars from `tools/fetch-opensky.py`). OpenSky's full history (Trino) is only for institutions, so it isn't used.
-- GBIF's 2024 occurrences (step 18) are in `data/raw/gbif/` (the zip, `download.json` with its DOI, `state.json`), fetched with the developer's GBIF login from `~/.config/gpstiles/gbif.netrc` (outside the repo; never print, copy or commit it).
-- Datasets that need an account (Kaggle, GBIF, OpenSky): never create accounts yourself. Ask the developer, who registers with [email removed].
+- GBIF's 2024 occurrences (step 18) will be in `data/raw/gbif/` (the zip, `download.json` with its DOI, `state.json`), fetched with the developer's GBIF login from `~/.config/gpstiles/gbif.netrc` (outside the repo; never print, copy or commit it).
+- Datasets that need an account (Kaggle, GBIF, OpenSky): never create accounts yourself. Ask the developer.
 
 ## Docs
 - Keep docs minimal: this file, `docs/DESIGN.md`, `docs/TESTING.md`, `docs/steps/`. Create a new doc only if the developer asks.
@@ -92,4 +92,4 @@ Picking up mid-step: trust the files and `git status`, not memory. Re-run `make 
 - Turn off or bypass a hook (`--no-verify`, editing `.claude/settings.json` or `tools/stop-gate.sh`) to get past a red check.
 - Deploy before approval, or publish a release anywhere (push, upload) without the developer saying so.
 - Let the reviewer edit code. Codex runs read-only.
-- Push anywhere but `origin` (github.com/srir84/gps-tile-server, private), or commit or push as anyone but `srir84`. This repo's own git config sets both (`user.email` 179548959+srir84@users.noreply.github.com; pushes use gh's `srir84` login whatever account gh has active). Don't change that config.
+- Push anywhere but `origin`, or commit or push as anyone but the owner's account set in this clone's git config. Don't change that config.

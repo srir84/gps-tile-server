@@ -175,4 +175,4 @@ After this commit: `GPSTILES_PORT=8090 make deploy`, `ais-2023.gpt` (9.7 GB, in 
 - `fetch-ais.sh` against MarineCadastre after the fixes (the real data was fetched by its first version, from the scratchpad; every day = `awk` = import).
 
 ## Next
-- Stage 5: a GPX reader (OpenStreetMap's public GPS traces) and the world datasets that need accounts (GBIF, OpenSky: the developer registers with [email removed]).
+- Stage 5: a GPX reader (OpenStreetMap's public GPS traces) and the world datasets that need accounts (GBIF, OpenSky: the developer registers).

@@ -1,6 +1,6 @@
 # gps-tile-server: Testing and feedback loop
 
-How every step is tested, and how agents get fast feedback while building. Summary in `DESIGN.md` §11.2. This file has the details.
+How every step is tested, and how agents get fast feedback while building. Summary in `DESIGN.md` §11.2. This file has the details. Each step's real output, planted bugs and reviews: [docs/steps/](steps/README.md).
 
 ---
 
@@ -58,7 +58,7 @@ flowchart TB
 | 3. Bad input | Broken rows, broken files, broken requests → clean error, never a crash | `tests/unit/` + `tests/e2e/` | `make check` | < 5 s |
 | 4. End-to-end | Start the real server on a small test file, send real HTTP requests | `tests/e2e/` (Python) | `make check` | < 5 s |
 | 5. Memory safety | Levels 1–4 again with AddressSanitizer + UndefinedBehaviorSanitizer | same | `make sanitize` | < 30 s |
-| 6. Real data | The §12.2 checks on full T-Drive, against `awk` and Python | `tests/data/` (Python + shell) | `make check-data` | < 5 min |
+| 6. Real data | Each downloaded dataset (8: T-Drive … OpenSky) against `awk`, Python or DuckDB | `tests/data/` (Python + awk) | `make check-data` | minutes |
 
 Levels 1–5 use only the small files in `tests/fixtures/`, so they never need `data/`. Level 6 needs `data/`. If it is missing, `make check-data` prints `SKIPPED: <reason>` and exits 0. A skip is not a pass: the step file lists it under "Not verified".
 
@@ -70,17 +70,15 @@ Levels 1–5 use only the small files in `tests/fixtures/`, so they never need `
 |---|---|---|
 | `make check` | Build, then levels 1–4 | 0 = all passed |
 | `make sanitize` | Rebuild with sanitizers, then levels 1–4 | 0 = all passed, no memory errors |
-| `make check-data` | Level 6 on real T-Drive | 0 = every known answer matched |
+| `make check-data` | Level 6 on every downloaded dataset (missing ones SKIPPED) | 0 = every known answer matched |
 | `TEST_SEED=N make check` | Re-run random tests with a given seed | same as `make check` |
 
 What `make check` prints (short, so it can be pasted into a step file):
 
 ```text
-unit       42 passed   0 failed
-random      6 passed   0 failed   seed=1
-badinput   18 passed   0 failed
-e2e        12 passed   0 failed
-ALL PASSED  (3.1 s)
+unit        39 passed   0 failed
+e2e        154 passed   0 failed
+ALL PASSED (build)
 ```
 
 On a failure: file, line, test name, the bug it was written to catch, expected vs actual, and the seed.
@@ -154,7 +152,7 @@ tests/
 │   ├── check_osm.py     OpenStreetMap's GPS traces 2013, light: 3 GPX files = the Python rules = Python's XML parser = metadata.xml (step 16)
 │   ├── osm_count.py     the whole OSM dump's track points, file by file (run by hand: the answer source, step 16)
 │   ├── check_opensky.py OpenSky 2022-06-27, light: 2 of 24 hours = awk, an hour's codes and 2 airports = Python (step 17)
-│   ├── check_gbif.py    GBIF 2024: rows = GBIF's totalRecords, counts = awk, a sample's codes = Python (step 18)
+│   ├── (check_gbif.py)  to come in step 18 (GBIF), which waits for GBIF's download service
 │   └── row_counts.awk   the row rules in awk, any columns: independent counts           (step 2; any columns from step 10)
 ├── oracle/
 │   └── *.py             independent answers: slow counts, plain sorts, PNG decoding
@@ -177,6 +175,9 @@ tests/
 | Known T-Drive numbers | `DESIGN.md` §13 |
 | GeoLife's number of points | its own user guide (Figure 7), and `awk` |
 | USGS rows per period | USGS's own count service, asked for each period and each window by `tools/fetch-usgs.py` (`MANIFEST.txt`) |
+| OSM GPX track points | Python's XML parser on sample files · `tests/data/osm_count.py` over the whole dump · the dump's own `metadata.xml` |
+| AIS and OpenSky rows | `awk` over every day (AIS) or hour (OpenSky), streamed from the archives |
+| NYC places in a box | DuckDB's count of the places inside the box's edges |
 
 ---
 
@@ -258,10 +259,10 @@ At least 2 deliberate breaks per step from step 1 on. Steps 0a and 0b use a setu
 |---|---|---|
 | End-to-end and answer checks | Python, built-in modules only | C: more code for the same checks. Extra Python packages: an install step |
 | Real-data checks | Separate `make check-data` | Inside `make check`: needs 447 MB of data and takes minutes |
-| Fuzzing tool | Not now. Level 3 random bad input covers the basics | libFuzzer / AFL: extra setup. Revisit after step 5 |
-| Code coverage | Not now | `llvm-cov` report: maybe in step 9 |
-| CI | Local pre-commit hook | GitHub Actions: only once there is a GitHub repo |
-| Closed loop | Codex reviewer · Stop hook · local service + release (decision 2026-10-28) | Claude subagent reviewer: same model family as the builder, a less independent read. Public server: out of scope (DESIGN §14) |
+| Fuzzing tool | Not used. Level 3 random bad input, plus reviewers' fuzzing against the Python rules (step 12: 3,000 files) | libFuzzer / AFL: extra setup |
+| Code coverage | Not measured | `llvm-cov` report: not set up |
+| CI | Local pre-commit hook and `make verify` | GitHub Actions: not set up (the real-data checks need data that isn't in the repo) |
+| Closed loop | Codex reviewer · Stop hook · local service + release (decision 2026-10-28); from step 3a also a separate Claude skeptic agent, in its own copy | Public server: out of scope (DESIGN §14) |
 
 ---
 
@@ -290,7 +291,7 @@ The "break on purpose" proof is not part of `make verify`. The agent does it by 
 | Does | If `src/`, `tests/` or the `Makefile` differ from the last commit (new files included), run `make -s check` |
 | Red | Block the stop (exit 2) and send the last 40 lines back to the agent |
 | Loop guard | After 3 blocks in a row, let the agent stop. It must write the problem under "Blocked on" in the step file. Counter: `build/stop-gate.count` (ignored, cleared by `make clean`). A green check resets it |
-| Time | `make check` stays under 10 s, so every stop stays fast |
+| Time | `make check` takes about 2 minutes now (the browser and download-script tests are most of it), so a stop that runs it waits that long |
 | Codex as builder | Codex has no Stop hook. AGENTS.md rule instead: run `make check` before ending a turn |
 
 ### 12.3 Codex review
@@ -348,7 +349,7 @@ The "break on purpose" proof is not part of `make verify`. The agent does it by 
 | `make release-test` | Same package and smoke test in `build/release-test/`, no tag. Used before approval |
 | `make release VERSION=x.y.z` | Optimized build of the commit itself (`git archive`), for macOS 13 or later → `dist/gpstiles-x.y.z-macos-arm64.tar.gz` (binary, README, Leaflet's license, and `LICENSE` once there is one) + `.sha256` file → local git tag `vx.y.z` |
 | Smoke test | Unpack into a temp folder. The unpacked `gpstiles` imports a 10-row CSV the test writes there, builds it, serves it on `--port 0`, and the smoke checks run against it |
-| Publishing | Uploading anywhere (e.g. GitHub Releases) is outward-facing: only after the developer says so, and only once a GitHub repo exists |
+| Publishing | Uploading anywhere (e.g. GitHub Releases) is outward-facing: only after the developer says so |
 | Later | Linux build (stage 5+) |
 
 ### 12.8 Limits that stop runaway loops

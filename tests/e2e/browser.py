@@ -7,6 +7,7 @@ import json
 import os
 import pathlib
 import select
+import shutil
 import subprocess
 import tempfile
 import time
@@ -28,7 +29,7 @@ class Browser:
     """One headless Chrome with one tab of width × height pixels, closed on exit."""
 
     def __init__(self, width=1200, height=800, internet=False):
-        self.profile = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
+        self.profile = tempfile.mkdtemp()  # removed in close(), errors ignored: Chrome may still be writing (Python 3.9 has no ignore_cleanup_errors)
         self.buffer = bytearray()
         self.next_id = 0
         self.session = None
@@ -45,7 +46,7 @@ class Browser:
         args = [CHROME, "--headless=new", "--remote-debugging-pipe", "--no-first-run", "--no-default-browser-check",
                 "--disable-gpu", "--disable-extensions", "--disable-background-networking", "--disable-sync",
                 "--hide-scrollbars", "--mute-audio", "--js-flags=--max-old-space-size=512",  # a runaway page stops at 512 MB
-                f"--user-data-dir={self.profile.name}",
+                f"--user-data-dir={self.profile}",
                 f"--window-size={width},{height}", "about:blank"]
         if not internet:
             args.insert(1, "--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE 127.0.0.1")
@@ -88,7 +89,7 @@ class Browser:
                 os.close(fd)
             except OSError:
                 pass
-        self.profile.cleanup()
+        shutil.rmtree(self.profile, ignore_errors=True)
 
     def _read(self, deadline):
         """The next message from Chrome (each ends with a zero byte)."""

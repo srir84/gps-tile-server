@@ -5,7 +5,7 @@
 | | |
 |---|---|
 | **Built** | `src/geo.c` (place → world x/y → Z-order code → tile, and back) · `gpstiles where LON LAT --zoom Z` · unit, random and end-to-end tests · `tests/validate/step-1.sh` |
-| **Status** | waiting for review |
+| **Status** | approved |
 | **Date** | 2026-10-28 |
 | **Agent(s)** | Claude Opus 5.5 (builder) · Codex CLI (reviewer, read-only, via `tools/review.sh 1`) |
 

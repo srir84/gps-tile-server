@@ -5,7 +5,7 @@
 | | |
 |---|---|
 | **Built** | `src/import.c` (text rows → Z-order codes + skip counts) · `gpstiles import` · `make check-data` (real T-Drive checks) · unit, random and end-to-end tests · `tests/validate/step-2.sh` |
-| **Status** | waiting for review |
+| **Status** | approved |
 | **Date** | 2026-10-29 |
 | **Agent(s)** | Claude Opus 5.5 (builder) · Codex CLI (reviewer, read-only, via `tools/review.sh 2`) |
 

@@ -25,7 +25,7 @@
 
 ## Why the public samples, not OpenSky's full history
 
-The developer registered OpenSky with [email removed]. Its full history is a Trino database; the login works, but a query answered `PERMISSION_DENIED: Cannot execute query`. OpenSky's own Request Data Access page says the full dataset is granted "only to research institutions, aviation authorities, and governments" and that "pre-curated datasets are available for individuals". The developer chose those (2026-11-02): one Monday a week from 2020-05-25 to 2022-06-27, no account needed. Their license allows non-profit research and education and internal testing and evaluation; the data is never committed or published (`data/` is ignored).
+The developer registered OpenSky. Its full history is a Trino database; the login works, but a query answered `PERMISSION_DENIED: Cannot execute query`. OpenSky's own Request Data Access page says the full dataset is granted "only to research institutions, aviation authorities, and governments" and that "pre-curated datasets are available for individuals". The developer chose those (2026-11-02): one Monday a week from 2020-05-25 to 2022-06-27, no account needed. Their license allows non-profit research and education and internal testing and evaluation; the data is never committed or published (`data/` is ignored).
 
 ## Design
 - **`tools/fetch-opensky.py`** (Python, built-in modules only, like `fetch-usgs.py`): reads the bucket's S3 listing (every page), and for each `states_<day>-<HH>.csv.tar` downloads to `.part`, keeps it only when its size and ETag match and it holds exactly one `.csv.gz`; a rerun checks kept hours again and skips them. A stop leaves no `.part`.

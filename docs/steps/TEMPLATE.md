@@ -44,6 +44,12 @@ Review the full change, new files included: `.review/step-N/round-K.diff` (writt
 
 Left for the developer to decide: none
 
+## Review (Claude skeptic, separate agent)
+
+| Round | Finding (severity) | What happened |
+|---|---|---|
+| 1 | | fixed / not fixed because ... |
+
 ## Proof the tests catch bugs
 
 | Deliberate break (in a scratch copy) | Test that failed |

@@ -1,5 +1,7 @@
 # gps-tile-server: Design
 
+> **Reading guide.** How it works: §3 (system), §5 (key ideas in pictures), §7 (request flows), §9 (commands, API, file format). The project's record: §12 (the build plan, step by step) and §13 (measured facts). Each step's report: [steps/](steps/README.md).
+
 ## What we are building
 
 - **In:** a large set of GPS points (longitude, latitude), from millions to billions of them
@@ -13,19 +15,18 @@
 |---|---|
 | **What** | Turns millions to billions of GPS points into an interactive web map, served from **one file per dataset + one small C program**. One server can serve several datasets |
 | **Program** | `gpstiles` (commands: `import`, `build`, `serve`) |
-| **Language** | C11 + zlib. Map page: HTML + Leaflet |
-| **Runs on** | macOS laptop first, Linux later |
-| **First dataset** | T-Drive (Beijing taxis, ~10M points) |
+| **Language** | C11 + zlib. Map page: HTML/JS + Leaflet 1.9.4, compiled into the program |
+| **Runs on** | macOS (the C is portable; the build, deploy and data scripts use macOS tools) |
+| **Datasets tested** | 9, from 4.5 million to 2.7 billion points (README) |
 | **Status** | Stages 1–5 built (steps 0a–17). Step 18 (GBIF) waits for GBIF's download service. Each step's report: `docs/steps/` |
-| **Plan source** | `../../PROJECT_IDEAS.md` sections 8–10 |
 
 ---
 
 ## 1. The end product
 
-![Mockup of the finished map page](images/end-product-mockup.png)
+![The map page: T-Drive's 10,064,891 points in Beijing at zoom 11, a box drawn at the airport with its exact count and CSV export](images/stage-1-page.jpg)
 
-*Mockup with simulated data. Live mockup: https://claude.ai/artifact/6eS7M1H57qtoZ7oYseCbST*
+*The real page: T-Drive at zoom 11, a box at Capital Airport.*
 
 | Part of the page | What it shows |
 |---|---|
@@ -35,8 +36,8 @@
 | Right: Points per pixel | Color legend (log scale) |
 | Right: In view | Zoom, ground size of one pixel, points and tiles on screen |
 | Right: Tile requests | Tiles the browser asked the server for |
-| Hover (from step 7) | Points in the pixel under the cursor: the page asks the area-count endpoint for a pixel-sized box |
-| Box tool (step 7–8) | Draw a box → exact count → export CSV |
+| Hover | Points in the pixel under the cursor: the page asks the area-count endpoint for a pixel-sized box |
+| Right: Box | Draw a box → exact count → export CSV |
 
 ---
 
@@ -54,7 +55,7 @@
 
 ## 3. System at a glance
 
-![System at a glance: prepare (import, build) makes one .gpt file per dataset; serve opens one or more; browser and scripts ask the server](images/system-at-a-glance.png)
+![How gpstiles works: import turns each point into a code, build sorts the codes into one .gpt file, serve reads tiles from it for the browser and scripts](images/how-it-works.svg)
 
 | From | To | What moves | When |
 |---|---|---|---|
@@ -63,12 +64,11 @@
 | `.pts` file | `gpstiles build` | The codes | Once per dataset |
 | `gpstiles build` | `.gpt` file | Header + codes sorted in Z order (external merge sort, §5.3) | Once per dataset |
 | `.gpt` files (one per dataset) | `gpstiles serve` | Each one memory-mapped, read-only. The server never writes them | Mapped at startup · the parts a request touches are read then |
-| `www/index.html` | `gpstiles serve` | The map page | Per `GET /` |
+| `www/` (page, Leaflet 1.9.4) | `gpstiles serve` | Compiled into the program (`tools/embed.sh`); served at `/`, `/app.js`, `/app.css`, `/leaflet/…` | Built in |
 | Browser → server | | Asks for the page, tiles, a count or an export | Per user action |
 | Server → browser | | HTML, PNG tiles, JSON counts, CSV | Per request |
 | Scripts ↔ server | | Same API without the map: JSON and CSV | Per call |
-| Leaflet (unpkg CDN) | Browser | Map library JS + CSS | Once per page load |
-| Base map provider | Browser | Road and label images under our heat tiles | Per pan/zoom |
+| OpenStreetMap tile servers | Browser | Road and label images under our heat tiles | Per pan/zoom |
 
 ---
 
@@ -126,7 +126,7 @@ flowchart LR
 
 | Rule | Value |
 |---|---|
-| Why | Works for any file size: 80 MB (T-Drive) up to 16+ GB (NYC) on the same code path |
+| Why | One code path for any size: T-Drive's 80 MB in 1 run, OpenStreetMap's 21 GB in 20 runs, with the default 1 GiB |
 | Memory | `--mem` (default 1 GiB, minimum 1 MiB) sizes the sort buffer: `--mem / 8` codes per chunk. On top of it, fixed extras: 2 histograms (1 MiB) and a 64 KiB read buffer per run during the merge. Never the whole file |
 | Sort inside a chunk | `qsort` with a safe compare: `(a > b) - (a < b)`, never `a - b` |
 | Run files | Temp files in `--tmp` (default: next to the output). Deleted at the end, even on error |
@@ -144,19 +144,20 @@ flowchart LR
 ![Count points per pixel, then color each pixel on a log scale](images/pixel-to-color.png)
 
 - Color scale fixed per zoom level (stored in the header) → same density = same color on every tile
-- Counting (step 13): a pixel is itself a slice of the sorted file, and so is every square of pixels. A dense square is cut into its 4 quarters by binary search, down to single pixels, whose count is their slice's length; a sparse one (at most 4 points a pixel) is walked point by point. So a tile's time grows with the pixels its points fill, not with the points: Porto's zoom-0 tile (83 million points in a few pixels) takes 0.6 ms, not 164 ms; a tile with every one of its 65,536 pixels dense, the worst case, about 20 ms (the step 13 skeptic: 22 ms for 40 million evenly spread points, against 81 ms point by point). The pictures are the same
+- Counting: a pixel is itself a slice of the sorted file, and so is every square of pixels. A dense square is cut into its 4 quarters by binary search, down to single pixels, whose count is their slice's length; a sparse one (at most 4 points a pixel) is walked point by point. So a tile's time grows with the pixels its points fill, not with the points: Porto's zoom-0 tile (83 million points in a few pixels) takes 0.6 ms, not 164 ms; a tile with every one of its 65,536 pixels dense, the worst case, about 20 ms (22 ms measured for 40 million evenly spread points, against 81 ms point by point). The pictures are the same as point by point
 - Empty pixel = transparent
 
 ### 5.6 Counting an area
 
-![Area count: squares fully inside the box are counted by slice length, edge squares point by point](images/area-count.png)
+![Area count: squares fully inside the box are counted by slice length; an edge square with over 64 points is cut into quarters, a smaller one checked point by point](images/area-count.png)
 
+- Squares fully inside the box add their slice length. An edge square with more than 64 points is cut into its 4 quarters and tried again; a smaller one is checked point by point
 - Same sorted file, same binary search as tiles
 - Export = same box logic, streaming the points out as CSV
 
 ---
 
-## 6. Components (planned source modules)
+## 6. Components (source modules)
 
 ![Flowchart](diagrams/DESIGN-d2-79923d05.png)
 
@@ -224,7 +225,7 @@ sequenceDiagram
 
 ### 7.2 Area count
 
-![Sequence diagram](diagrams/DESIGN-d4-c6a9dffa.png)
+![Sequence diagram](diagrams/DESIGN-d4-28389e13.png)
 
 <details><summary>Diagram source (mermaid — sequence diagram)</summary>
 
@@ -240,7 +241,9 @@ sequenceDiagram
     S->>F: 2 binary searches for its slice
     alt square fully inside box
       S->>S: add slice length
-    else square on the box edge
+    else edge square, more than 64 points
+      S->>S: cut it into 4 quarters, each tried again
+    else edge square, 64 points or fewer
       S->>F: check each point in the slice
     end
   end
@@ -342,7 +345,7 @@ flowchart TD
 |---|---|---|
 | `gpstiles import (--lon-col C --lat-col C \| --polyline C \| --gpx) [--delim D] [--skip N] -o out.pts FILE...` | Text → `.pts`, prints counts. `--polyline C`: column C holds a list of `[lon,lat]` pairs; `--gpx`: GPX track points (§8) | 2, 12, 16 |
 | `gpstiles build [--mem 1G] [--tmp DIR] -o out.gpt in.pts...` | External merge sort → `.gpt`. `--mem` sizes the sort buffer, plus small fixed extras (§5.3) | 3a |
-| `gpstiles serve [--host 127.0.0.1] [--port 8080] FILE.gpt [FILE.gpt ...]` | Run the web server for one or more datasets | 5a |
+| `gpstiles serve [--host 127.0.0.1] [--port 8080] [--timeout 10] FILE.gpt...` | Web server for up to 32 datasets; `--port 0` picks a free port; `--timeout`: seconds a client has to send its request | 5a |
 | `gpstiles where LON LAT --zoom Z` | Print the tile for a location | 1 |
 | `gpstiles info file.gpt` | Print header: count, bounds, size | 3b |
 | `gpstiles count file.gpt Z X Y` | Points in one tile | 3b |
@@ -356,9 +359,9 @@ flowchart TD
 | `GET /` | Map page | 6 |
 | `GET /api/datasets` | JSON: every served dataset with id, count, bounds and start view | 5a |
 | `GET /api/datasets/{id}` | JSON: one dataset: count, bounds, start view, max zoom | 5a |
-| `GET /tiles/{id}/{z}/{x}/{y}.png` | 256×256 heat-map tile of dataset `{id}` | 5a |
+| `GET /tiles/{id}/{z}/{x}/{y}.png` | 256×256 heat-map tile of dataset `{id}`; header `X-Points` | 5a |
 | `GET /api/datasets/{id}/count?bbox=w,s,e,n` | JSON: exact count in box | 7 |
-| `GET /api/datasets/{id}/export.csv?bbox=w,s,e,n&limit=N` | CSV: `lon,lat` rows in box | 8 |
+| `GET /api/datasets/{id}/export.csv?bbox=w,s,e,n&limit=N` | CSV `lon,lat` rows in the box, at most `limit` (1 to 1,000,000, default 1,000,000); headers `X-Total-Points`, `X-Rows` | 8 |
 | Unknown `{id}` | 404 with a short message | 5a |
 | Anything else | 404 / 405 / 400 with a short message | 5a |
 
@@ -399,7 +402,7 @@ flowchart TD
 | 16 | count | uint64 | Number of points |
 | 24 | bounds | 4 × uint32 | Min x, min y, max x, max y (world units) of all points |
 | 40 | max_pixel_count | 25 × uint64 | Densest pixel at each zoom 0–24 (color scale). A pixel at zoom z is 1/256 of a tile side: the top 2(z + 8) bits of a code |
-| 240 | view box | 4 × uint32 | Where the map opens (ignores far-away junk and a few far trips): min x, min y, max x, max y after dropping `count / 20` points (rounded down) at each end of x and of y, widened to whole 65,536-unit buckets. 5 %, not 1 %, since step 11 (the developer's choice B): with 1 %, GeoLife's 1.3 % in North America opened it on most of the northern world |
+| 240 | view box | 4 × uint32 | Where the map opens (ignores far-away junk and a few far trips): min x, min y, max x, max y after dropping `count / 20` points (rounded down) at each end of x and of y, widened to whole 65,536-unit buckets. 5 % rather than 1 %, so a few far trips (GeoLife's 1.3 % in North America) don't pull the opening view away from the data |
 | 256 | points | count × uint64 | Z-order codes, sorted ascending |
 
 With 0 points every stat is 0. A file whose size isn't 256 + 8 × count, whose label, version or header size differ, or whose stats no build could write (min > max, a densest pixel of 0 or above count, or growing with the zoom) is refused. Replace a `.gpt` that may be open only by renaming a new file over it, as `build` does: rewriting it in place can crash a program that has it mapped.
@@ -417,14 +420,14 @@ With 0 points every stat is 0. A file whose size isn't 256 + 8 × count, whose l
 
 ---
 
-## 10. Planned folder layout
+## 10. Folder layout
 
 ```text
 gps-tile-server/
 ├── AGENTS.md                rules for agents: workflow, commands, done
 ├── CLAUDE.md                one line: @AGENTS.md
 ├── Makefile                 build, check, sanitize, verify, deploy (step 0a+)
-├── README.md                how to run                       (step 9)
+├── README.md                what it is, quick start, datasets, reference
 ├── docs/
 │   ├── DESIGN.md            this file
 │   ├── TESTING.md           test levels, answer sources, tests per step
@@ -434,23 +437,20 @@ gps-tile-server/
 ├── .claude/settings.json    Stop hook for Claude agents          (step 0b)
 ├── tools/                   stop-gate.sh, review.sh, pre-commit, deploy scripts
 ├── src/                     C source (modules in section 6)
-├── www/index.html           map page                          (step 6)
+├── www/                     map page (index.html, app.css, app.js) + leaflet/, compiled into the program
 ├── tests/                   layout in TESTING.md section 5
 │   ├── check.h, check.c     tiny C test runner
 │   ├── unit/                C unit + random + bad-input tests
 │   ├── selftest/            a suite that fails on purpose (proves the runner)
 │   ├── e2e/                 Python: command line, runner self-test, real HTTP
-│   ├── data/                Python: real T-Drive checks
+│   ├── data/                Python + awk: the real-data checks (8 datasets)
 │   ├── oracle/              Python: independent answers
 │   ├── validate/            step-N.sh: each step's validation, re-run forever
 │   └── fixtures/            small sample files with known answers
 ├── build/                   compiled program, test output     NOT in git
 ├── dist/                    release packages                  NOT in git
 ├── .review/                 Codex review rounds (step 0b)     NOT in git
-└── data/                    NOT in git
-    ├── raw/tdrive/          downloaded zips (80 MB)
-    ├── raw/tdrive_txt/      extracted text (447 MB, 8,911 files)
-    └── build/               .pts and .gpt outputs
+└── data/                    NOT in git: raw/ (your downloads), build/ (.pts and .gpt outputs)
 ```
 
 ---
@@ -586,7 +586,7 @@ After every step: stop, show what was built and checked and how you can check it
 
 ### 12.3 Stages after stage 1
 
-![Flowchart](diagrams/DESIGN-d10-e30f3228.png)
+![Flowchart](diagrams/DESIGN-d10-5d2179fc.png)
 
 <details><summary>Diagram source (mermaid — flowchart)</summary>
 
@@ -594,7 +594,7 @@ After every step: stop, show what was built and checked and how you can check it
 flowchart LR
   T1["Stage 1<br/>T-Drive<br/>~10M points"] --> T2["Stage 2<br/>GeoLife + USGS<br/>new formats, worldwide"]
   T2 --> T3["Stage 3<br/>Porto Taxi<br/>~80M, polylines"]
-  T3 --> DEC{"Time per point: not stored<br/>(builder, 12.6; developer<br/>to confirm)"}
+  T3 --> DEC{"Time per point: not stored<br/>(12.6; confirmed by<br/>the developer)"}
   DEC --> T4["Stage 4<br/>fast tiles, NYC 2009-2010<br/>+ NOAA AIS: over 1B"]
   T4 --> T5["Stage 5<br/>GPX (OSM traces), more<br/>world datasets"]
 ```
@@ -603,7 +603,7 @@ flowchart LR
 
 ### 12.4 Stage 2 steps (GeoLife + USGS)
 
-The goal (`PROJECT_IDEAS.md` §8.5): a second file layout and points spread over the whole world work with **no code changes beyond import options**. Each stage also repeats the same checks: points land in the right place, the file's count equals the points imported, tile counts add up from one zoom to the next, build time and tile speed are recorded, and area count, export and API stay right.
+The goal (the project's original plan): a second file layout and points spread over the whole world work with **no code changes beyond import options**. Each stage also repeats the same checks: points land in the right place, the file's count equals the points imported, tile counts add up from one zoom to the next, build time and tile speed are recorded, and area count, export and API stay right.
 
 **In plain English**
 
@@ -621,7 +621,7 @@ The goal (`PROJECT_IDEAS.md` §8.5): a second file layout and points spread over
 
 ### 12.5 Stage 3 steps (Porto taxis)
 
-The goal (`PROJECT_IDEAS.md` §8.5): "Polyline reader works; ~80M points still build and serve quickly". Porto's 1.7 million taxi trips are one CSV row each, their GPS points in one quoted `POLYLINE` column as a JSON list of `[lon,lat]` pairs. The same every-stage checks as §12.4.
+The goal (the project's original plan): "Polyline reader works; ~80M points still build and serve quickly". Porto's 1.7 million taxi trips are one CSV row each, their GPS points in one quoted `POLYLINE` column as a JSON list of `[lon,lat]` pairs. The same every-stage checks as §12.4.
 
 | Step | What we build | How we check it |
 |---|---|---|
@@ -633,7 +633,7 @@ The goal (`PROJECT_IDEAS.md` §8.5): "Polyline reader works; ~80M points still b
 
 ### 12.6 Stage 4 steps (over a billion points)
 
-The goal (`PROJECT_IDEAS.md` §8.5): "Over 1 billion points; build must work out-of-core (data larger than RAM); tile latency stays in milliseconds". Two facts change the plan's dataset: TLC's files now hold places only for 2009 and 2010 (later years hold zone numbers), about 680 million pickup and dropoff points, short of a billion; and a zoomed-out tile is drawn point by point (164 ms at Porto's 83 million). So: fast tiles first, then NYC's 2009–2010 taxis, then a billion points from NOAA's ship positions (AIS, plain CSV, no account; planned for stage 5, moved here).
+The goal (the project's original plan): "Over 1 billion points; build must work out-of-core (data larger than RAM); tile latency stays in milliseconds". Two facts change the plan's dataset: TLC's files now hold places only for 2009 and 2010 (later years hold zone numbers), about 680 million pickup and dropoff points, short of a billion; and a zoomed-out tile is drawn point by point (164 ms at Porto's 83 million). So: fast tiles first, then NYC's 2009–2010 taxis, then a billion points from NOAA's ship positions (AIS, plain CSV, no account; planned for stage 5, moved here).
 
 **Time per point (§14's decision before stage 4):** not stored, for now. The plan asked for this decision before stage 4 because NYC is where time matters most (its "Time filter (\"only 8–9 am\")") and rebuilding billions of points later is costly. Here that cost looks small: the raw files stay in `data/raw/`, and NYC's 680 million points should import in about 4 minutes and build in about 1 (estimated from one month: 28 million rows in 9 s; step 14 measures it). A time filter needs more than a column: a second sort key or a file per period, and a format change (DESIGN §9.3). Decided by the builder on 2026-11-01 to keep going under the developer's "proceed with all stages"; **confirmed by the developer on 2026-11-02**.
 
@@ -651,7 +651,7 @@ The goal (`PROJECT_IDEAS.md` §8.5): "Over 1 billion points; build must work out
 
 ### 12.7 Stage 5 steps (GPX, world datasets)
 
-The goal (`PROJECT_IDEAS.md` §8.5): "GPX reader; multi-billion-point worldwide datasets" (DS-6 OpenStreetMap's GPS traces, DS-7 AIS, DS-8 GBIF, DS-9 OpenSky). DS-7 was done in stage 4 (step 15). DS-8 and DS-9 need accounts, which the builder never makes (`AGENTS.md`): they wait for the developer to register ([email removed]); their import needs no new code (CSV/TSV with named latitude and longitude columns: import options, or Parquet through a converter as in step 14). The developer registered both on 2026-11-02. OpenSky's full history (its Trino database) is only for research institutions, aviation authorities and governments, so DS-9 uses OpenSky's pre-curated public samples for individuals (one Monday a week, 2020–2022; no account needed); DS-8 is one GBIF download, made with the developer's login (kept in a private file outside the repo).
+The goal (the project's original plan): "GPX reader; multi-billion-point worldwide datasets" (DS-6 OpenStreetMap's GPS traces, DS-7 AIS, DS-8 GBIF, DS-9 OpenSky). DS-7 was done in stage 4 (step 15). DS-8 and DS-9 need accounts, which the builder never makes (`AGENTS.md`): they wait for the developer to register; their import needs no new code (CSV/TSV with named latitude and longitude columns: import options, or Parquet through a converter as in step 14). The developer registered both on 2026-11-02. OpenSky's full history (its Trino database) is only for research institutions, aviation authorities and governments, so DS-9 uses OpenSky's pre-curated public samples for individuals (one Monday a week, 2020–2022; no account needed); DS-8 is one GBIF download, made with the developer's login (kept in a private file outside the repo).
 
 | Step | What we build | How we check it |
 |---|---|---|
@@ -663,7 +663,7 @@ The goal (`PROJECT_IDEAS.md` §8.5): "GPX reader; multi-billion-point worldwide 
 |---|---|---|---|
 | 16 | `import --gpx` (DESIGN §8), `tests/data/check_osm.py`, the stage 5 report | `xz -dc gpx-planet-2013-04-09.tar.xz \| tar -xOf - \| gpstiles import --gpx -o osm.pts /dev/stdin` · `build` · `bench` · the page | rows = `tests/data/osm_count.py` (= `metadata.xml`'s sum + 99 files it undercounts, §13) · samples = Python's XML parser · tiles in milliseconds |
 | 17 | `tools/fetch-opensky.py`, `tests/data/check_opensky.py` | per hour `tar -xOf … \| gunzip \| gpstiles import --lat-col 3 --lon-col 4 --skip 1` · `build` · `bench` · the page | counts = `awk` over the whole day · airports' tiles = Python |
-| 18 | `tools/fetch-gbif.py`, `tests/data/check_gbif.py`, the stage 5 report | `unzip -p … \| gpstiles import --delim tab` (columns from the header) · `build` · `bench` · the page | rows = GBIF's `totalRecords` · counts = `awk` |
+| 18 | `tools/fetch-gbif.py`, `tests/data/check_gbif.py` (to come: GBIF's service is down), the stage 5 report | `unzip -p … \| gpstiles import --delim tab` (columns from the header) · `build` · `bench` · the page | rows = GBIF's `totalRecords` · counts = `awk` |
 
 ---
 
@@ -700,14 +700,14 @@ The goal (`PROJECT_IDEAS.md` §8.5): "GPX reader; multi-billion-point worldwide 
 
 ---
 
-## 14. Not in scope yet
+## 14. Limits and non-goals
 
 | Feature | When |
 |---|---|
 | Time filter / time animation | Not stored (decided 2026-11-01, confirmed by the developer 2026-11-02, §12.6): would change the file format |
-| Compare two datasets | After the time decision |
+| Compare two datasets | Not built |
 | Filter by other columns (fare, vehicle) | Later; needs a new index design |
-| Linux-only speedups (io_uring, O_DIRECT) | After macOS stages work |
+| Linux-only speedups (io_uring, O_DIRECT) | Not built (see Linux) |
 | Linux | `gpstiles` is portable C; the data scripts and checks use macOS's tools (bsdtar's `tar -xOf F '*.csv.gz'`, `ls -lnT`, `date -j`, `stat -f`): they would need porting first |
 | Logins, HTTPS, public hosting | Not planned (local tool) |
 

@@ -5,7 +5,7 @@
 | | |
 |---|---|
 | **Built** | Git repo, Makefile (`all`, `check`, `sanitize`, `clean`), C test runner, Python end-to-end runner, minimal `gpstiles` with `help` |
-| **Status** | waiting for review |
+| **Status** | approved |
 | **Date** | 2026-10-28 |
 | **Agent(s)** | Claude Opus 5.5 (builder) · Codex CLI 0.162.1 (reviewer, read-only, 2 rounds) |
 

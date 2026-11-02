@@ -29,7 +29,7 @@ Drawing one tile at 2.7 billion points (`gpstiles bench`, drawing only), p50 / p
 **What stage 5 shows** (`PROJECT_IDEAS.md` §8.5: "GPX reader; multi-billion-point worldwide datasets"):
 - **A GPX reader:** `import --gpx` reads OpenStreetMap's 848,059 files in one stream with no XML library (DESIGN §8's GPX rules), and agrees with Python's XML parser on every sample file.
 - **Multi-billion, worldwide:** 2.68 billion points on every continent, from one 21.4 GB file, served by the same small program; the build stays out of core (1 GiB buffer, 20 runs).
-- **DS-7 (AIS)** was done in stage 4 (step 15). **DS-8 (GBIF) and DS-9 (OpenSky) need accounts**, which the builder never makes: they wait for the developer ([email removed]). Their import needs no new code (CSV/TSV columns, or Parquet through a converter as in step 14).
+- **DS-7 (AIS)** was done in stage 4 (step 15). **DS-8 (GBIF) and DS-9 (OpenSky) need accounts**, which the builder never makes: they wait for the developer. Their import needs no new code (CSV/TSV columns, or Parquet through a converter as in step 14).
 
 ## Every stage 5 check (DESIGN §12.7)
 
@@ -180,4 +180,4 @@ After this commit: `GPSTILES_PORT=8090 make deploy`, `osm-gps.gpt` (21.4 GB, in 
 - GBIF and OpenSky (DS-8, DS-9): they need accounts, which wait for the developer.
 
 ## Next
-- All five stages are built. Open for the developer: GBIF and OpenSky accounts ([email removed]), the time per point decision, the license.
+- All five stages are built. Open for the developer: GBIF and OpenSky accounts, the time per point decision, the license.

@@ -5,7 +5,7 @@
 | | |
 |---|---|
 | **Built** | `make verify`, `make check-data` (placeholder), `make hooks` + `tools/pre-commit`, Stop hook (`.claude/settings.json` + `tools/stop-gate.sh`), `tools/review.sh`, validation scripts for steps 0a and 0b |
-| **Status** | waiting for review |
+| **Status** | approved |
 | **Date** | 2026-10-28 |
 | **Agent(s)** | Claude Opus 5.5 (builder) · Codex CLI 0.162.1 (reviewer, read-only, via `tools/review.sh`) · Claude Haiku (one headless run to see the Stop hook fire live) |
 
