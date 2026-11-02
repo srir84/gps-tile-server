@@ -232,6 +232,88 @@ def test_polyline_arguments_are_checked():
             assert not (pathlib.Path(tmp) / "o.pts").exists()
 
 
+def assert_gpx_matches_oracle(tmp, files):
+    """Runs import --gpx and checks the counts line and every code against the Python rules."""
+    out = pathlib.Path(tmp) / "out.pts"
+    result = subprocess.run([os.environ["GPSTILES_BIN"], "import", "--gpx", "-o", str(out), *map(str, files)],
+                            capture_output=True, text=True, timeout=60)
+    assert result.returncode == 0 and result.stderr == "", result
+    counts, codes = rules.gpx_files(files)
+    assert result.stdout == rules.counts_line(counts) + "\n", (result.stdout, counts)
+    assert read_codes(out) == codes, "codes differ from the Python rules"
+    return counts
+
+
+def test_gpx_track_points_give_their_known_counts_and_codes():
+    """catches: GPX read wrong (step 16): attributes in the other order or quotes, a tag over several lines, a waypoint or <trkptx> taken as a track point, a missing or doubled lat kept, or a place off by the XML"""
+    import xml.etree.ElementTree as ET
+    gpx = FIXTURES / "small.gpx"
+    with tempfile.TemporaryDirectory() as tmp:
+        counts = assert_gpx_matches_oracle(tmp, [gpx, gpx])
+        assert counts == dict(rows=18, imported=10, skipped_zero=2, skipped_out_of_range=2, skipped_malformed=4), counts
+        # Python's own XML parser finds the same track points where both attributes are good numbers (it refuses the
+        # whole file for the doubled lat, so that line is left out for it).
+        text = gpx.read_text().replace('<trkpt lat="55.2" lat="55.3" lon="30.1"/>', "")
+        points = [(float(t.get("lon")), float(t.get("lat"))) for t in ET.fromstring(text).iter("{http://www.topografix.com/GPX/1/0}trkpt")
+                  if t.get("lat") and t.get("lon")]
+        kept = [rules.code(lon, lat) for lon, lat in points if (lon, lat) != (0, 0) and abs(lat) <= rules.MAX_LAT]
+        assert read_codes(pathlib.Path(tmp) / "out.pts")[:5] == kept, "the kept places differ from the XML parser's"
+
+
+def test_random_gpx_matches_the_python_rules():
+    """catches: a tag split by the 1 MiB read buffer lost or doubled, a tag past 4,096 bytes kept, one cut off by the end of the file miscounted, or any other disagreement with DESIGN §8's GPX rules"""
+    seed = int(os.environ.get("TEST_SEED") or 1)
+    rng = random.Random(seed)
+    def tag():
+        lat, lon = rng.choice(["55.21", "0", "-85.05112877980659", "91", "x", "1e2"]), rng.choice(["30.1", "0", "180", "-180.5", ""])
+        parts = [f'lat="{lat}"', f"lon='{lon}'"] + ([f'ele="{"9" * rng.randrange(0, 5000)}"'] if rng.random() < 0.02 else [])
+        rng.shuffle(parts)
+        space = rng.choice([" ", "\n  ", "\t", " \r\n "])
+        return "<trkpt" + space + space.join(parts) + rng.choice(["/>", ">", " >", "/>\n"]) + rng.choice(["", "<ele>1</ele></trkpt>"])
+    body = "".join(rng.choice([tag(), tag(), "<trkptx lat='1' lon='2'/>", "<trk>", "\n"]) for _ in range(60000))
+    with tempfile.TemporaryDirectory() as tmp:
+        files = [write(tmp, "a.gpx", ("<gpx>" + body + "</gpx>").encode()), write(tmp, "b.gpx", (body + '<trkpt lat="1"').encode())]
+        assert sum(f.stat().st_size for f in files) > 3 << 20, "the files must pass the 1 MiB read buffer"
+        try:
+            counts = assert_gpx_matches_oracle(tmp, files)
+        except AssertionError:
+            print(f"seed={seed}")
+            raise
+        assert counts["imported"] > 0 and counts["skipped_malformed"] > 0 and counts["skipped_out_of_range"] > 0, counts
+
+
+def test_gpx_tags_at_the_read_buffer_edge_and_the_tag_limit():
+    """catches: a tag lost or doubled when the 1 MiB read buffer is refilled (at any start near its edge), a tag of exactly 4,096 bytes refused or one of 4,097 kept, a '>' inside a quoted value taken as the tag's end (Codex), a stray or unclosed quote or an unclosed tag hiding the track points after it (both reviewers), or a NUL byte taken as a space or kept in a value (step 16)"""
+    tag = b'<trkpt lat="55.2" lon="30.1"/>'
+    with tempfile.TemporaryDirectory() as tmp:
+        files = [write(tmp, f"edge{k}.gpx", b" " * ((1 << 20) - k) + tag + b"\n" + tag) for k in range(0, 40)]
+        for k in (6, 5, 1):  # the file ends inside a "<trkpt"
+            files.append(write(tmp, f"end{k}.gpx", b" " * ((1 << 20) - k) + tag[:k]))
+        counts = assert_gpx_matches_oracle(tmp, files)
+        assert counts["rows"] == 80 and counts["imported"] == 80, counts
+        pad = lambda n: b'<trkpt lat="55.2" lon="30.1" ele="' + b"9" * (n - 36) + b"\">"  # n bytes from '<' to '>'
+        assert len(pad(4096)) == 4096
+        limit = [write(tmp, "4096.gpx", pad(4096)), write(tmp, "4097.gpx", pad(4097)),
+                 write(tmp, "gt.gpx", b'<trkpt lat="55.2" name="a>b" lon="30.1"/><trkpt lat=\'55.2\' name=\'a>b\' lon=\'30.1\'/>'),
+                 write(tmp, "stray.gpx", b'<trkpt lat="55.2" lon="30.1" it\'s><trkpt lat="55.2" lon="30.1"/><name>Bob\'s</name>'
+                       b'<trkpt lat="55.2" lon="30.1" name="no end><trkpt lat="55.2" lon="30.1"/>'
+                       b'<trkpt lat="1"\n<trkpt lat="55.2" lon="30.1"/>'),  # Codex's: an unclosed tag before a good one
+                 write(tmp, "nul2.gpx", b'<trkpt lat="55.2" lon="30.1" name="a\x00b"/><trkpt lat="55.2" lon="30.1" na\x00me="a"/>'),
+                 write(tmp, "nul.gpx", b'<trkpt\x00lat="55.2" lon="30.1"/><trkpt lat="55.2"\x00lon="30.1"/>')]
+        counts = assert_gpx_matches_oracle(tmp, limit)  # 4096 and gt.gpx kept (XML allows '>' in a value); in stray.gpx
+        # a stray quote or an unclosed one breaks only its own tag (a '<' ends it), not the track points after it
+        assert counts == dict(rows=13, imported=6, skipped_zero=0, skipped_out_of_range=0, skipped_malformed=7), counts
+
+
+def test_gpx_arguments_are_checked():
+    """catches: --gpx mixed with column options, --delim or --skip (silently ignored instead of refused)"""
+    with tempfile.TemporaryDirectory() as tmp:
+        for extra in (["--gpx", "--lon-col", "1"], ["--gpx", "--polyline", "2"], ["--gpx", "--delim", ";"], ["--gpx", "--skip", "1"]):
+            result = subprocess.run([os.environ["GPSTILES_BIN"], "import", *extra, "-o", str(pathlib.Path(tmp) / "o.pts"),
+                                     str(FIXTURES / "small.gpx")], capture_output=True, text=True, timeout=30)
+            assert result.returncode == 2 and result.stderr, (extra, result)
+
+
 def test_number_edges_follow_the_rules():
     """catches: the map edge refused, a value past it kept, "1e999" or "-0" mishandled, or a NUL byte hiding junk"""
     with tempfile.TemporaryDirectory() as tmp:

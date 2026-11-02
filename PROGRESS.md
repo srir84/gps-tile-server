@@ -6,10 +6,10 @@ The handoff file. Read it first. Update it at the start and end of every step.
 
 | | |
 |---|---|
-| **Current step** | 15: A billion points (NOAA AIS) + stage 4 report (DESIGN §12.6) |
-| **Status** | approved |
-| **Next action** | Step 15: the AIS checks, verify, both reviews, commit, deploy. Then stage 5, as the developer set on 2026-11-01: "proceed with all stages do not stop until all stages are complete". |
-| **Blocked on** | nothing |
+| **Current step** | 16: GPX, OpenStreetMap's GPS traces (stage 5, DESIGN §12.7) |
+| **Status** | approved (all-stages go-ahead 2026-11-01) |
+| **Next action** | All five stages are built. For the developer: register GBIF and OpenSky (stage 5's DS-8, DS-9) with [email removed], then their import is a column-options or converter job; confirm or reverse "no time per point" (step 10) and "the count to match is Python's, not metadata.xml's" (step 16); choose a license. |
+| **Blocked on** | GBIF and OpenSky: the developer's accounts |
 
 Stage 2 approval: on 2026-11-01 the developer said "continue with stage implementation make sure everything works all tests pass", so stage 2 runs the same way as stage 1.
 
@@ -54,7 +54,13 @@ Status values: `not started` → `in progress` → `waiting for review` → `app
 |---|---|---|---|---|---|
 | 13 | Fast tiles | approved | 2026-11-01 | `fb1148b` | `docs/steps/step-13.md` |
 | 14 | NYC taxis 2009–2010 | approved | 2026-11-01 | `f2a31ff` | `docs/steps/step-14.md` |
-| 15 | A billion points (NOAA AIS) + stage 4 report | approved | 2026-11-01 | | `docs/steps/step-15.md` |
+| 15 | A billion points (NOAA AIS) + stage 4 report | approved | 2026-11-01 | `31e4bfe` | `docs/steps/step-15.md` |
+
+## Step log (stage 5: GPX, world datasets, DESIGN §12.7)
+
+| Step | Name | Status | Date | Commit | Review |
+|---|---|---|---|---|---|
+| 16 | GPX: OpenStreetMap's GPS traces + stage 5 report | approved | 2026-11-01 | (this commit) | `docs/steps/step-16.md` |
 
 ## Done before step 0 (planning)
 
@@ -71,6 +77,10 @@ Status values: `not started` → `in progress` → `waiting for review` → `app
 
 | Date | What | Command | Result |
 |---|---|---|---|
+| 2026-11-01 | Step 16 after both review rounds (Codex: 2 medium + 1 low, then 2 medium + 1 low; Claude skeptic: 1 medium + 3 low, then 2 low; all fixed or filled in): `make verify` | `make verify` | unit 39/0 · e2e 140/0 under check and sanitize · check-data: 3 OSM files = the Python rules = Python's XML parser = metadata.xml · step-16: the whole dump re-imported → rows=2676451044 imported=2675901374 (= `osm_count.py`, DESIGN §13), 20 runs, tiles add up, the world page, p99 under 53 ms warm · VERIFY PASSED (about 1 h 30 min) |
+| 2026-11-01 | OpenStreetMap's GPS traces 2013 counted file by file, independent of gpstiles | `xz -dc … \| python3 -I tests/data/osm_count.py metadata.xml`; the 15 biggest mismatches through `xml.etree` | 2,676,451,044 track points in 848,059 files · `metadata.xml` 2,674,972,244: 99 early files hold 1,478,800 more (their points repeat; the XML parser = gpstiles on all 15) |
+| 2026-11-01 | OpenStreetMap's GPS traces imported and built for step 16 | `xz -dc \| tar -xOf - \| gpstiles import --gpx`, `build` | 27 min 12 s · rows=2676451044 imported=2675901374 skipped_zero=546151 skipped_out_of_range=3519 skipped_malformed=0 · build: 20 runs, 283 s, peak 1.08 GB, 21.4 GB `.gpt` |
+| 2026-11-01 | Deploy of step 15 (`31e4bfe`); AIS added to the service | `GPSTILES_PORT=8090 make deploy`, `datasets.conf`, `launchctl kickstart -k`, `tools/deploy.sh smoke` | smoke test green, no rollback · 8 datasets listed and drawn (pid 81572), AIS's 1,216,355,854 points among them |
 | 2026-11-01 | Step 15 after both review rounds (Codex: 3 medium + 1 low, then 2 medium + 1 low; Claude skeptic: 3 medium + 7 low, then 5 low; all fixed or answered): `make verify` | `make verify` | unit 38/0 · e2e 136/0 under check and sanitize · check-data: every dataset, AIS 3 days = awk, a 4-run = 1-run build · step-15: 151 days = DESIGN §13, 10-run = 5-run build, p99 under 21 ms at 1.2 billion points · VERIFY PASSED (34 min 39 s) · by hand: all 151 days = awk, a 1-run build = the 10-run file |
 | 2026-11-01 | OpenStreetMap's public GPS traces (2013) downloaded for stage 5 | `curl`, `md5` | `gpx-planet-2013-04-09.tar.xz`, 22,261,751,900 bytes, MD5 `ef0ac17afbaccd3a8f0bce6776a6e675` = the published `.md5` · GPX 1.0, `<trkpt lat=… lon=…>` · `metadata.xml` lists each file's `points` |
 | 2026-11-01 | Deploy of step 14 (`f2a31ff`); NYC added to the service | `GPSTILES_PORT=8090 make deploy`, `datasets.conf`, `launchctl kickstart -k`, `tools/deploy.sh smoke` | smoke test green, no rollback · 7 datasets listed and drawn (pid 29028) |
@@ -124,6 +134,7 @@ Status values: `not started` → `in progress` → `waiting for review` → `app
 | Box rule wording (DESIGN §9.2) | Developer to confirm | Longitude 180 as a box edge = the world's last unit; bbox at most 127 characters, each number at most 63. See `docs/steps/step-7.md` Decisions |
 | A total time limit on exports | Developer to confirm | None in step 8, on purpose: a client that keeps reading is served; one that pauses 3 × timeout is let go. See `docs/steps/step-8.md` Decisions |
 | Test time budgets (TESTING §2) | Developer to confirm | Proposed: `make check` under 90 s, `make sanitize` under 120 s, `make verify` under 15 minutes (now 57 s, 64 s and 12 min 29 s: the headless Chrome page tests and the export reader tests). See `docs/steps/step-9.md` Decisions |
+| GBIF and OpenSky (stage 5's DS-8, DS-9) | Developer to register | Both need an account; the builder never makes one. Register with [email removed], then their CSV imports with options (no new code) |
 | License | Developer to choose | v0.1.0 is packaged without one, so others can't legally use it. E.g. MIT, Apache-2.0 or GPL-3.0. Once a `LICENSE` is committed, `make release` packs it |
 
 ## Known issues

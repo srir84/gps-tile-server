@@ -1,0 +1,25 @@
+<?xml version='1.0' encoding='utf-8'?>
+<gpx xmlns="http://www.topografix.com/GPX/1/0" version="1.0" creator="OSM gpx_dump.py">
+  <wpt lat="48.1" lon="11.5"><name>a waypoint: not a track point</name></wpt>
+  <trk>
+    <name>Track 0</name>
+    <trkseg>
+      <trkpt lat="55.2116510" lon="30.1793820">
+        <ele>143.56</ele>
+        <time>2011-05-08T06:18:08Z</time>
+      </trkpt>
+      <trkpt lon="30.1795370" lat="55.2116970"><ele>143.70</ele></trkpt>
+      <trkpt lat='55.2117420' lon='30.1796990'/>
+      <trkpt
+          lat = "55.2117880"
+          lon = "30.1798650"
+      ><ele>144.13</ele></trkpt>
+      <trkpt lat="0" lon="0"/>
+      <trkpt lat="91.5" lon="30.1"/>
+      <trkpt lat="55.21"/>
+      <trkpt lat="55.2" lat="55.3" lon="30.1"/>
+      <trkptx lat="55.2" lon="30.1"/>
+      <trkpt lat="-33.8688" lon="151.2093"><time>2011-05-08T06:18:20Z</time></trkpt>
+    </trkseg>
+  </trk>
+</gpx>

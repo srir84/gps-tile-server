@@ -232,3 +232,36 @@ ais_gpt() {
     AIS_COUNTS=$(sed -n 1p "$counts")
     AIS_BUILD=$(sed -n 2p "$counts")
 }
+
+# OpenStreetMap's public GPS traces of 2013 (step 16): one 22 GB tar.xz of GPX files.
+OSM_DUMP="$ROOT/data/raw/osm-gps/gpx-planet-2013-04-09.tar.xz"
+
+# Imports the whole dump (xz -dc | tar -xOf - | import --gpx) and builds it into build/validate/osm-gps.gpt with the
+# default --mem, kept while the dump, the program and this function's code are the same. Sets OSM_GPT, OSM_COUNTS and
+# OSM_BUILD. About an hour (the decompression). Needs $OSM_DUMP.
+osm_gpt() {
+    OSM_GPT=$ROOT/build/validate/osm-gps.gpt
+    local pts=$ROOT/build/validate/osm-gps.pts counts=$ROOT/build/validate/osm-gps.counts
+    local key=$ROOT/build/validate/osm-gps.key now
+    now=$( { ls -lnT "$OSM_DUMP"; declare -f osm_gpt; } | shasum -a 256) || fail "can't list the OSM dump"
+    if [ "$OSM_GPT" -nt "$ROOT/build/gpstiles" ] && [ "$counts" -nt "$ROOT/build/gpstiles" ] &&
+        [ "$(cat "$key" 2> /dev/null)" = "$now" ]; then
+        OSM_COUNTS=$(sed -n 1p "$counts")
+        OSM_BUILD=$(sed -n 2p "$counts")
+        return 0
+    fi
+    mkdir -p "$ROOT/build/validate" || exit 1
+    rm -f "$OSM_GPT" "$pts" "$counts" "$key"
+    xz -dc "$OSM_DUMP" | tar -xOf - | "$ROOT/build/gpstiles" import --gpx -o "$pts" /dev/stdin > "$counts"
+    local status=("${PIPESTATUS[@]}")
+    if [ "${status[0]}" != 0 ] || [ "${status[1]}" != 0 ] || [ "${status[2]}" != 0 ]; then
+        rm -f "$pts" "$counts" # an early end leaves counts that look whole
+        fail "OSM import failed (xz ${status[0]}, tar ${status[1]}, import ${status[2]})"
+    fi
+    "$ROOT/build/gpstiles" build --tmp "$ROOT/build/validate" -o "$OSM_GPT" "$pts" >> "$counts" ||
+        { rm -f "$pts" "$counts"; fail "OSM build failed"; }
+    rm -f "$pts"
+    echo "$now" > "$key"
+    OSM_COUNTS=$(sed -n 1p "$counts")
+    OSM_BUILD=$(sed -n 2p "$counts")
+}

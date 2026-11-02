@@ -74,6 +74,7 @@ Picking up mid-step: trust the files and `git status`, not memory. Re-run `make 
 - The Porto taxis (step 12) are in `data/raw/porto/` (UCI's zip and `train.csv`, DESIGN §13).
 - The NYC taxis 2009–2010 (step 14) are in `data/raw/nyc-taxi/` (24 Parquet files); DuckDB, for them only, in `data/tools/venv/` (not part of the program or `make check`).
 - NOAA's AIS ship positions, January–May 2023 (step 15), are in `data/raw/ais/` (151 zips from `tools/fetch-ais.sh`).
+- OpenStreetMap's GPS traces of 2013 (step 16) are in `data/raw/osm-gps/` (the `tar.xz`, its `.md5`, and `metadata.xml` taken out of it).
 - Datasets that need an account (Kaggle, GBIF, OpenSky): never create accounts yourself. Ask the developer, who registers with [email removed].
 
 ## Docs

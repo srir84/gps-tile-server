@@ -157,6 +157,78 @@ long import_parse_polyline(const char *s, size_t n, double *lonlat, size_t max_p
     }
 }
 
+#define GPX_TAG "<trkpt"
+#define GPX_TAG_LENGTH 6
+/* XML's 4 space characters: a test, not strchr (which also matches a string's ending '\0', so a NUL byte would pass). */
+static int xml_space(char c)
+{
+    return c == ' ' || c == '\t' || c == '\r' || c == '\n';
+}
+
+/* The value of attribute `name` among a start tag's attributes text[0..n): name="v" or name='v', spaces allowed
+ * around '='. Returns 1 found (*value, *length set), 0 not there, -1 the attributes are broken or name comes twice. */
+static int tag_attribute(const char *text, size_t n, const char *name, const char **value, size_t *length)
+{
+    size_t name_length = strlen(name), i = 0;
+    int found = 0;
+    for (;;) {
+        while (i < n && xml_space(text[i]))
+            i++;
+        if (i >= n)
+            return found;
+        size_t start = i;
+        while (i < n && text[i] != '=' && !xml_space(text[i]))
+            i++;
+        size_t end = i;
+        while (i < n && xml_space(text[i]))
+            i++;
+        if (end == start || i >= n || text[i] != '=')
+            return -1; /* not name=value */
+        i++;
+        while (i < n && xml_space(text[i]))
+            i++;
+        if (i >= n || (text[i] != '"' && text[i] != '\''))
+            return -1;
+        char quote = text[i++];
+        const char *close = memchr(text + i, quote, n - i);
+        if (close == NULL)
+            return -1;
+        if (end - start == name_length && memcmp(text + start, name, name_length) == 0) {
+            if (found)
+                return -1; /* twice: which one? */
+            found = 1;
+            *value = text + i;
+            *length = (size_t)(close - (text + i));
+        }
+        i = (size_t)(close - text) + 1;
+    }
+}
+
+/* An attribute's number: at most 63 characters, then import_parse_number. Returns 0 if ok. */
+static int attribute_number(const char *text, size_t length, double *out)
+{
+    char copy[64];
+    if (length == 0 || length >= sizeof copy)
+        return -1;
+    memcpy(copy, text, length);
+    copy[length] = '\0';
+    return import_parse_number(copy, length, out);
+}
+
+enum import_result import_gpx_point(const char *text, size_t n, uint64_t *code)
+{
+    const char *lat_text, *lon_text;
+    size_t lat_length, lon_length;
+    double lat, lon;
+    if (n > 0 && text[n - 1] == '/')
+        n--; /* <trkpt lat="1" lon="2"/> */
+    if (tag_attribute(text, n, "lat", &lat_text, &lat_length) != 1 ||
+        tag_attribute(text, n, "lon", &lon_text, &lon_length) != 1 ||
+        attribute_number(lat_text, lat_length, &lat) != 0 || attribute_number(lon_text, lon_length, &lon) != 0)
+        return IMPORT_MALFORMED;
+    return import_point(lon, lat, code);
+}
+
 enum import_result import_row(char *line, size_t length, const struct import_options *options, uint64_t *code)
 {
     if (length > 0 && line[length - 1] == '\r')
@@ -281,8 +353,95 @@ static int polyline_row(const char *line, size_t length, const struct import_opt
     return 0;
 }
 
+/* The next "<trkpt" followed by a space, '/' or '>' in s[i..n), or n (a "<trkpt" in the last 6 bytes isn't known yet). */
+static size_t next_trkpt(const char *s, size_t i, size_t n)
+{
+    while (i + GPX_TAG_LENGTH < n) {
+        const char *lt = memchr(s + i, '<', n - i - GPX_TAG_LENGTH);
+        if (lt == NULL)
+            return n;
+        i = (size_t)(lt - s);
+        char after = s[i + GPX_TAG_LENGTH];
+        if (memcmp(s + i, GPX_TAG, GPX_TAG_LENGTH) == 0 && (xml_space(after) || after == '/' || after == '>'))
+            return i;
+        i++;
+    }
+    return n;
+}
+
+/* Where the tag ends in s[i..n): its closing '>' (the first outside a quoted value: '>' is allowed inside one), a '<'
+ * or a NUL (never in a tag, even quoted: the tag is broken, and a stray quote can't hide the tags after it), or NULL. */
+static const char *tag_end(const char *s, size_t i, size_t n)
+{
+    char quote = 0;
+    for (; i < n; i++) {
+        if (s[i] == '<' || s[i] == '\0') {
+            return s + i;
+        } else if (quote != 0) {
+            if (s[i] == quote)
+                quote = 0;
+        } else if (s[i] == '"' || s[i] == '\'') {
+            quote = s[i];
+        } else if (s[i] == '>') {
+            return s + i;
+        }
+    }
+    return NULL;
+}
+
+/* GPX: the stream is read in chunks, not lines (a tag may span lines, and a line hold many tags). Every <trkpt start
+ * tag is a row; one with no '>' within IMPORT_MAX_GPX_TAG bytes (or before the end) is malformed. */
+static int gpx_stream(FILE *in, FILE *out, struct import_counts *counts)
+{
+    char *buf = malloc(READ_SIZE);
+    if (buf == NULL)
+        return -1;
+    size_t start = 0, end = 0;
+    int eof = 0, status = 0;
+    for (;;) {
+        size_t at = next_trkpt(buf, start, end);
+        if (at < end) {
+            size_t room = end - at < IMPORT_MAX_GPX_TAG ? end - at : IMPORT_MAX_GPX_TAG;
+            const char *gt = tag_end(buf, at + GPX_TAG_LENGTH, at + room);
+            if (gt != NULL || end - at >= IMPORT_MAX_GPX_TAG || eof) {
+                uint64_t code = 0;
+                enum import_result result = IMPORT_MALFORMED; /* too long, broken by a '<', or cut off by the end */
+                if (gt != NULL && *gt == '>')
+                    result = import_gpx_point(buf + at + GPX_TAG_LENGTH, (size_t)(gt - buf) - at - GPX_TAG_LENGTH, &code);
+                counts->rows++;
+                if (take(result, code, out, counts) != 0) {
+                    status = -1;
+                    break;
+                }
+                start = gt != NULL && *gt == '>' ? (size_t)(gt - buf) + 1 : at + GPX_TAG_LENGTH;
+                continue;
+            }
+        }
+        if (eof)
+            break;
+        /* Keep what may still be a tag: from a "<trkpt" waiting for its '>', else the last 6 bytes. */
+        size_t keep = at < end ? at : (end - start > GPX_TAG_LENGTH ? end - GPX_TAG_LENGTH : start);
+        memmove(buf, buf + keep, end - keep);
+        end -= keep;
+        start = 0;
+        size_t got = fread(buf + end, 1, READ_SIZE - end, in);
+        if (got == 0) {
+            if (ferror(in)) {
+                status = -1;
+                break;
+            }
+            eof = 1;
+        }
+        end += got;
+    }
+    free(buf);
+    return status;
+}
+
 int import_stream(FILE *in, FILE *out, const struct import_options *options, struct import_counts *counts)
 {
+    if (options->gpx)
+        return gpx_stream(in, out, counts);
     int polyline = options->polyline_col != 0;
     struct line_reader reader = {in, malloc(READ_SIZE + 1), 0, 0, 0,
                                  polyline ? IMPORT_MAX_POLYLINE_LINE : IMPORT_MAX_LINE};

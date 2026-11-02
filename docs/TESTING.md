@@ -125,7 +125,7 @@ tests/
 │   ├── test_stop_gate.py     tools/stop-gate.sh with a fake check                        (step 0b)
 │   ├── test_review_script.py tools/review.sh with a fake codex                           (step 0b)
 │   ├── test_where.py         `gpstiles where` vs places.csv and the OSM formula, bad input (step 1)
-│   ├── test_import.py        `gpstiles import` vs the fixtures and oracle/import_rules.py, bad input (step 2), GeoLife's layout (step 10), polylines (step 12)
+│   ├── test_import.py        `gpstiles import` vs the fixtures and oracle/import_rules.py, bad input (step 2), GeoLife's layout (step 10), polylines (step 12), GPX (step 16)
 │   ├── test_build.py         `gpstiles build` vs oracle/gpt_rules.py, big and tiny --mem, file errors, killed builds (step 3a)
 │   ├── test_info_count.py    `gpstiles info` / `count` vs oracle/gpt_rules.py and slow counts, broken_*.gpt (step 3b)
 │   ├── test_render.py        `gpstiles render`: PNGs decoded by oracle/tile_rules.py, pixel by pixel (step 4)
@@ -185,6 +185,7 @@ tests/
 | `tiny.gpt` | A few hundred points built by the test | Slow counts per square | 3b |
 | `broken_*.gpt` | Wrong label, cut short, size mismatch | Refused with a clear message | 3b |
 | `two_datasets/` | Two tiny `.gpt` files | Each listed with its own count | 5a |
+| `small.gpx` | OpenStreetMap's GPX layout: track points with `ele` and `time`, either order and quote, a tag over several lines, self-closing tags, a waypoint, `<trkptx>`, (0,0), latitude 91.5, a missing `lon`, a doubled `lat` | 9 rows, 5 kept, 1 at (0,0), 1 off the map, 2 malformed | 16 |
 | `porto_small.csv` | Porto's layout with made-up trips: quoted fields, an empty trip, a trip with (0,0), one with a latitude of 192, a list with a trailing comma, spaces inside a list | 8 rows, 16 points, 14 kept, 1 at (0,0), 1 off the map, 1 malformed row | 12 |
 | `geolife_small.plt` | GeoLife's real layout with made-up places near Beijing: the 6 header lines, CRLF, latitude first, an altitude of -777, and a latitude of 400 as in the real data | 12 rows, 11 kept, 1 out of range | 10 |
 
@@ -227,6 +228,7 @@ At least 2 deliberate breaks per step from step 1 on. Steps 0a and 0b use a setu
 | 13 | Random dense tiles (clusters, repeats, every zoom 0–24): the new pixel counts = counting point by point · the old render tests (Python pixel counts) unchanged | A tile with one point, an empty tile, a whole tile in one pixel |
 | 14 | `tools/nyc-taxi.py` on tiny Parquet files made by DuckDB (2009's and 2010's column names; NULL, NaN, infinity, (0,0), the map's edges): known counts (SKIPPED without DuckDB) | Output to a file and a file with zone numbers refused · `make check-data`: counts = DuckDB's own SQL count and DESIGN §13; a build in several runs; Manhattan's tile and 3 places = DuckDB's counts inside their edges · `step-14.sh`: the API at JFK = DuckDB, the page, bench |
 | 15 | `tools/fetch-ais.sh` against a fake server: a whole day kept, a corrupt one (right size) refused with nothing left, a rerun resumes, a missing day, impossible or backwards dates refused, a damaged or empty kept day fetched again, a 2-CSV zip and a size other than stated refused | `make check-data`: 3 days = `awk` (one with skipped rows), a day's every code and 3 ports = Python, 3 days in 4 runs = in 1 · `step-15.sh`: 151 days = DESIGN §13 (`awk`), a build in several runs = with a 2 GiB buffer, tiles add up, the page, p99 at 1.2 billion points |
+| 16 | GPX tags: attributes in any order, `'` or `"`, spaces and newlines, self-closing `<trkpt .../>`, a tag split by the read buffer, many on a line, `<trkptx>` not a track point, a tag of 4,096 bytes kept and 4,097 refused, `>` inside a quoted value, a missing or bad `lat`/`lon` · a tag at each of 40 places before the 1 MiB edge · random GPX = the Python rules | A tag cut by the end of the stream, a stray or unclosed quote, a `<` or NUL inside a tag → one malformed row, the next track point still read · `--gpx` with column options, `--delim` or `--skip` refused |
 
 ---
 

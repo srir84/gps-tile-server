@@ -189,7 +189,7 @@ def test_the_real_docs_give_each_step_only_its_step_table_rows():
     with tempfile.TemporaryDirectory() as tmp:
         repo = Repo(tmp, docs={"docs/DESIGN.md": (real / "DESIGN.md").read_text(),
                                "docs/TESTING.md": (real / "TESTING.md").read_text()})
-        for step in ["16", "21", "24", "40"]:  # rows of the .gpt header's table and §8's, not steps
+        for step in ["21", "24", "40"]:  # rows of the .gpt header's table and §8's, not steps (12 and 16 are steps now)
             assert repo.review(step).returncode == 2, step
         for step, words in [("8", "Export"), ("10", "GeoLife")]:
             assert repo.review(step).returncode == 0, step

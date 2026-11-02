@@ -75,6 +75,7 @@ check-data: $(BIN)
 	@GPSTILES_BIN="$(CURDIR)/$(BIN)" $(PYTHON) -I -B tests/data/check_usgs.py
 	@GPSTILES_BIN="$(CURDIR)/$(BIN)" $(PYTHON) -I -B tests/data/check_porto.py
 	@GPSTILES_BIN="$(CURDIR)/$(BIN)" $(PYTHON) -I -B tests/data/check_ais.py
+	@GPSTILES_BIN="$(CURDIR)/$(BIN)" $(PYTHON) -I -B tests/data/check_osm.py
 	@if [ -x data/tools/venv/bin/python ]; then GPSTILES_BIN="$(CURDIR)/$(BIN)" data/tools/venv/bin/python -I -B tests/data/check_nyc.py; \
 	elif ls data/raw/nyc-taxi/*.parquet > /dev/null 2>&1; then echo "check-data FAILED (NYC): the files are here, DuckDB isn't (README)"; exit 1; \
 	else echo "check-data: SKIPPED (NYC): no data in data/raw/nyc-taxi"; fi

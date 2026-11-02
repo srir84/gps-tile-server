@@ -2,6 +2,7 @@
 source for import counts and codes (TESTING.md §6). Slow but simple: bytes in, counts and codes out.
 """
 import math
+import pathlib
 import re
 
 MAX_LAT = 85.05112877980659
@@ -169,3 +170,83 @@ def polyline_counts_line(counts):
     """The line `gpstiles import --polyline` prints."""
     return " ".join(f"{name}={counts[name]}" for name in
                     ["rows", "points", "imported", "skipped_zero", "skipped_out_of_range", "skipped_malformed"])
+
+
+# GPX (step 16, --gpx): every "<trkpt" start tag is a row; its lat and lon attributes are the place.
+MAX_GPX_TAG = 4096
+_XML_SPACE = b" \t\r\n"
+_ATTRIBUTE = re.compile(rb"[ \t\r\n]*([^= \t\r\n]+)[ \t\r\n]*=[ \t\r\n]*(\"[^\"]*\"|'[^']*')")
+
+
+def gpx_attributes(text):
+    """A start tag's attributes text → {name: [values]}, or None when it isn't only name="v" / name='v' pairs."""
+    found, i = {}, 0
+    while True:
+        while i < len(text) and text[i:i + 1] in (b" ", b"\t", b"\r", b"\n"):
+            i += 1
+        if i == len(text):
+            return found
+        m = _ATTRIBUTE.match(text, i)
+        if not m:
+            return None
+        found.setdefault(m.group(1), []).append(m.group(2)[1:-1])
+        i = m.end()
+
+
+def gpx_place(text):
+    """('point', code) | ('zero' | 'out_of_range' | 'malformed', None) for one tag's attributes text."""
+    if text.endswith(b"/"):
+        text = text[:-1]
+    attributes = gpx_attributes(text)
+    if attributes is None or len(attributes.get(b"lat", [])) != 1 or len(attributes.get(b"lon", [])) != 1:
+        return "malformed", None
+    lat_text, lon_text = attributes[b"lat"][0], attributes[b"lon"][0]
+    if len(lat_text) > 63 or len(lon_text) > 63 or not NUMBER.fullmatch(lat_text) or not NUMBER.fullmatch(lon_text):
+        return "malformed", None
+    lon, lat = float(lon_text), float(lat_text)
+    if lon == 0.0 and lat == 0.0:
+        return "zero", None
+    if not (-180.0 <= lon <= 180.0 and -MAX_LAT <= lat <= MAX_LAT):
+        return "out_of_range", None
+    return "point", code(lon, lat)
+
+
+def _tag_end(data, i, n):
+    """The index of the tag's '>' in data[i:n] outside quoted values, or -1 (none, or a '<' or NUL first: broken)."""
+    quote = None
+    for j in range(i, n):
+        c = data[j:j + 1]
+        if c in (b"<", b"\x00"):
+            return -1
+        if quote:
+            if c == quote:
+                quote = None
+        elif c in (b'"', b"'"):
+            quote = c
+        elif c == b">":
+            return j
+    return -1
+
+
+def gpx_files(paths):
+    """What `gpstiles import --gpx` must print and write: (counts dict, list of codes), each file on its own."""
+    counts = dict(rows=0, imported=0, skipped_zero=0, skipped_out_of_range=0, skipped_malformed=0)
+    codes = []
+    for path in paths:
+        data = pathlib.Path(path).read_bytes()
+        at = data.find(b"<trkpt")
+        while at >= 0:
+            after = data[at + 6:at + 7]
+            if after not in (b" ", b"\t", b"\r", b"\n", b"/", b">"):
+                at = data.find(b"<trkpt", at + 1)
+                continue
+            counts["rows"] += 1
+            close = _tag_end(data, at + 6, min(at + MAX_GPX_TAG, len(data)))
+            kind, point = ("malformed", None) if close < 0 else gpx_place(data[at + 6:close])
+            if kind == "point":
+                counts["imported"] += 1
+                codes.append(point)
+            else:
+                counts["skipped_" + kind] += 1
+            at = data.find(b"<trkpt", close + 1 if close >= 0 else at + 6)
+    return counts, codes

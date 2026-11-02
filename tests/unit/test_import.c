@@ -9,8 +9,8 @@
 #include "geo.h"
 #include "import.h"
 
-static const struct import_options TDRIVE = {3, 4, ',', 0, 0};
-static const struct import_options PORTO = {0, 0, ',', 1, 9};
+static const struct import_options TDRIVE = {3, 4, ',', 0, 0, 0};
+static const struct import_options PORTO = {0, 0, ',', 1, 9, 0};
 
 static int parses(const char *text, double expected)
 {
@@ -73,12 +73,12 @@ static void rows_are_sorted_into_the_right_bucket(void)
     CHECK(row("1,t,abc,39.9", &code) == IMPORT_MALFORMED && row(" ", &code) == IMPORT_MALFORMED);
     CHECK(row("1,t,116.5,39.9,extra,columns", &code) == IMPORT_POINT);
 
-    struct import_options x_delim = {1, 2, 'x', 0, 0};
+    struct import_options x_delim = {1, 2, 'x', 0, 0, 0};
     char hex_looking[] = "0x10"; /* lon 0, lat 10: strtod must not read "0x10" as one hex number */
     CHECK(import_row(hex_looking, strlen(hex_looking), &x_delim, &code) == IMPORT_POINT);
     CHECK_EQ_U64(geo_code(geo_world_x(0.0), geo_world_y(10.0)), code);
 
-    struct import_options lat_first = {2, 1, '\t', 0, 0};
+    struct import_options lat_first = {2, 1, '\t', 0, 0, 0};
     char line[] = "39.907\t116.391";
     CHECK(import_row(line, strlen(line), &lat_first, &code) == IMPORT_POINT);
     CHECK_EQ_U64(843, geo_tile_of(code, 10).x);
@@ -327,6 +327,35 @@ static void polyline_rows_may_be_long_up_to_their_limit(void)
     CHECK(counts.points > 100000 && counts.points == counts.imported);
 }
 
+static enum import_result gpx(const char *attributes)
+{
+    uint64_t code;
+    return import_gpx_point(attributes, strlen(attributes), &code);
+}
+
+static void gpx_tags_need_one_good_lat_and_lon(void)
+{
+    uint64_t code = 0;
+    const char *tag = " lat=\"39.907\" lon=\"116.391\"";
+    CHECK(import_gpx_point(tag, strlen(tag), &code) == IMPORT_POINT);
+    CHECK_EQ_U64(geo_code(geo_world_x(116.391), geo_world_y(39.907)), code);
+    const char *good[] = {" lon='116.391' lat='39.907'", "\n  lat = \"39.9\"\n  lon = \"116.3\"\n", " lat=\"1\" lon=\"2\"/",
+                          " lat=\"1\" ele='3' lon=\"2\" xmlns:x=\"a>b\""};
+    for (size_t i = 0; i < sizeof good / sizeof good[0]; i++)
+        CHECK(gpx(good[i]) == IMPORT_POINT);
+    CHECK(gpx(" lat=\"0\" lon=\"0\"") == IMPORT_ZERO);
+    CHECK(gpx(" lat=\"95\" lon=\"1\"") == IMPORT_OUT_OF_RANGE);
+    const char *bad[] = {"", " lat=\"1\"", " lon=\"1\"", " lat=\"1\" lon=\"x\"", " lat=\"1\" lon=\"\"",
+                         " lat=\"1\" lat=\"2\" lon=\"3\"", " lat=1 lon=2", " lat=\"1\" lon=\"2", " lat=\"1\" lon='2\"",
+                         " lat=\"1\" lon=\"2\" junk", " plat=\"1\" lon=\"2\"", " lat=\"1\" lon=\"0x2\"",
+                         " lat=\" 1\" lon=\"2\"", " =\"1\" lat=\"1\" lon=\"2\""};
+    /* A NUL byte isn't a space (strchr would match a string's ending '\0'). */
+    const char nul[] = " lat=\"1\"\0lon=\"2\"";
+    CHECK(import_gpx_point(nul, sizeof nul - 1, &code) == IMPORT_MALFORMED);
+    for (size_t i = 0; i < sizeof bad / sizeof bad[0]; i++)
+        CHECK(gpx(bad[i]) == IMPORT_MALFORMED);
+}
+
 const struct check_case import_cases[] = {
     {"plain_decimals_parse_and_nothing_else_does",
      "nan, inf, hex, spaces or trailing junk accepted as a coordinate, or a NUL byte hiding junk",
@@ -357,5 +386,8 @@ const struct check_case import_cases[] = {
     {"polyline_rows_may_be_long_up_to_their_limit",
      "a long trip refused at the plain rows' 64 KB, a row past 1,000,000 bytes kept, or the row after it lost",
      polyline_rows_may_be_long_up_to_their_limit},
+    {"gpx_tags_need_one_good_lat_and_lon",
+     "a GPX place read from the wrong attribute (plat, ele), a doubled or missing lat kept, a broken tag taken, or a number with spaces or hex taken (step 16)",
+     gpx_tags_need_one_good_lat_and_lon},
 };
 const size_t import_cases_count = sizeof import_cases / sizeof import_cases[0];

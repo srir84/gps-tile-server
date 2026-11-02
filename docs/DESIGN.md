@@ -322,6 +322,16 @@ flowchart TD
 | Counts | `rows=` trips, `points=` the pairs of the well-formed rows, then `imported`, `skipped_zero`, `skipped_out_of_range` (pairs) and `skipped_malformed` (rows) |
 | Long rows | Up to 1,000,000 bytes (a plain row: 65,536; a trailing `\r` counts in both); longer is one malformed row |
 
+**GPX** (`--gpx`, step 16): the input is XML read in chunks, not lines; every `<trkpt` start tag is a row.
+
+| Rule | Value |
+|---|---|
+| A track point | `<trkpt` followed by a space, tab, CR, LF, `/` or `>`, up to its first `>` outside a quoted value (`<trkptx`, `<wpt>`, `<rtept>` and everything else are skipped) |
+| Its place | The `lat` and `lon` attributes, in any order, `name="…"` or `name='…'`, spaces and newlines around `=` allowed; numbers as for plain rows, at most 63 characters |
+| Malformed | No closing `>` within 4,096 bytes of `<trkpt` (or before the end), a `<` or a NUL byte before it (even quoted: XML never allows either, so a stray quote or an unclosed tag spoils only itself), attributes that aren't `name="…"` pairs, `lat` or `lon` missing, twice, or not a number |
+| Then | (0,0) and off-the-map places are skipped as for plain rows |
+| Not read | Comments, CDATA and entities (`&#46;`): a `<trkpt` inside a comment counts. A `>` inside a quoted value doesn't end the tag (as in XML). Spaces are space, tab, CR and LF (a NUL byte is not one). GPX files from GPS loggers and OpenStreetMap have none of these in track points |
+
 ---
 
 ## 9. Interfaces
@@ -330,7 +340,7 @@ flowchart TD
 
 | Command | Does | Step |
 |---|---|---|
-| `gpstiles import (--lon-col C --lat-col C \| --polyline C) [--delim D] [--skip N] -o out.pts FILE...` | Text → `.pts`, prints counts. `--polyline C`: column C holds a list of `[lon,lat]` pairs (§8) | 2, 12 |
+| `gpstiles import (--lon-col C --lat-col C \| --polyline C \| --gpx) [--delim D] [--skip N] -o out.pts FILE...` | Text → `.pts`, prints counts. `--polyline C`: column C holds a list of `[lon,lat]` pairs; `--gpx`: GPX track points (§8) | 2, 12, 16 |
 | `gpstiles build [--mem 1G] [--tmp DIR] -o out.gpt in.pts...` | External merge sort → `.gpt`. `--mem` sizes the sort buffer, plus small fixed extras (§5.3) | 3a |
 | `gpstiles serve [--host 127.0.0.1] [--port 8080] FILE.gpt [FILE.gpt ...]` | Run the web server for one or more datasets | 5a |
 | `gpstiles where LON LAT --zoom Z` | Print the tile for a location | 1 |
@@ -640,6 +650,18 @@ The goal (`PROJECT_IDEAS.md` §8.5): "Over 1 billion points; build must work out
 | 14 | `tools/nyc-taxi.py` (Parquet → `lon,lat` rows), `tests/data/check_nyc.py` | import, `build`, the API in Manhattan | counts = DuckDB (§13) |
 | 15 | `tools/fetch-ais.sh`, `tests/data/check_ais.py`, the stage 4 report | import day by day, `build` (the default 1 GiB buffer: several runs), `bench` with the file in the disk cache | counts = `awk` · a billion points in milliseconds |
 
+### 12.7 Stage 5 steps (GPX, world datasets)
+
+The goal (`PROJECT_IDEAS.md` §8.5): "GPX reader; multi-billion-point worldwide datasets" (DS-6 OpenStreetMap's GPS traces, DS-7 AIS, DS-8 GBIF, DS-9 OpenSky). DS-7 was done in stage 4 (step 15). DS-8 and DS-9 need accounts, which the builder never makes (`AGENTS.md`): they wait for the developer to register ([email removed]); their import needs no new code (CSV/TSV with named latitude and longitude columns: import options, or Parquet through a converter as in step 14).
+
+| Step | What we build | How we check it |
+|---|---|---|
+| 16 GPX | `import --gpx`: every `<trkpt ...>` start tag of an XML stream is a row, its `lat` and `lon` attributes the place (in any order, either quote; tags may span lines). OpenStreetMap's public GPS traces of 2013 (22 GB of `tar.xz`), streamed through `xz -dc \| tar -xOf -` into import, built and served. Then the stage 5 report | Counts = Python's own XML parser on sample files · the dump's track points = Python's count file by file (planned: `metadata.xml`'s sum, which is short by 99 files: §13, step 16's Decisions) · tiles add up · the world map of GPS traces · bench |
+
+| Step | Builds | You validate by | Expected result |
+|---|---|---|---|
+| 16 | `import --gpx` (DESIGN §8), `tests/data/check_osm.py`, the stage 5 report | `xz -dc gpx-planet-2013-04-09.tar.xz \| tar -xOf - \| gpstiles import --gpx -o osm.pts /dev/stdin` · `build` · `bench` · the page | rows = `tests/data/osm_count.py` (= `metadata.xml`'s sum + 99 files it undercounts, §13) · samples = Python's XML parser · tiles in milliseconds |
+
 ---
 
 ## 13. Validation facts (known answers)
@@ -665,6 +687,9 @@ The goal (`PROJECT_IDEAS.md` §8.5): "Over 1 billion points; build must work out
 | USGS valid points | 4,770,607 | rows − zero − out of range |
 | Porto archive | `taxi+service+trajectory+prediction+challenge+ecml+pkdd+2015.zip` (UCI): 534,065,916 bytes, SHA-256 `a33e2a5e145607ae2bad0db5d21b7548c88b7e0f9db1ce15839f24c4c61f8c76`; inside, `train.csv.zip` → `train.csv`, 1,942,848,724 bytes | archive.ics.uci.edu, 2026-11-01 |
 | NOAA AIS January–May 2023 | 151 zips (`AIS_2023_01_01.zip` … `AIS_2023_05_31.zip`, 47.6 GB) from MarineCadastre, 2026-11-01 · `rows=1216355904 imported=1216355854 skipped_zero=0 skipped_out_of_range=39 skipped_malformed=11` | each day's `gpstiles import` added up = `awk` over every day (`row_counts.awk`, LON=4 LAT=3 SKIP=1) |
+| OpenStreetMap GPS traces 2013 | `gpx-planet-2013-04-09.tar.xz` from planet.openstreetmap.org/gps/: 22,261,751,900 bytes, MD5 `ef0ac17afbaccd3a8f0bce6776a6e675` (= its `.md5`); 848,059 `.gpx` files and `metadata.xml` | Downloaded 2026-11-01, `md5` |
+| OSM track points | 2,676,451,044 in the dump · `metadata.xml` lists 2,674,972,244: its count matches the file for 847,960 files; 99 early uploads (ids 105,565–123,773) hold 1,478,800 more, their points repeated (Python's XML parser on the 15 biggest: the same count as the file, only 25–50% of (lat, lon, time) distinct) | `tests/data/osm_count.py` (Python's `tarfile` and a regular expression, file by file) · `xml.etree` |
+| OSM import | `rows=2676451044 imported=2675901374 skipped_zero=546151 skipped_out_of_range=3519 skipped_malformed=0` | rows = `osm_count.py`; the other numbers from gpstiles only (checked on sample files) |
 | NYC taxis 2009–2010 (TLC) | 24 Parquet files, 11 GB · 339,897,217 trips → 679,794,434 pickup and dropoff points: 668,475,278 on the map, 11,315,804 at (0,0), 3,242 off the map, 110 without a place | DuckDB, 2026-11-01 |
 | Porto trips (rows) and points | 1,710,670 trips (5,901 with no point), 83,409,386 points, all on the map, none at (0,0), no malformed row; longest line 84,640 bytes | Python's `csv` and `json` |
 
