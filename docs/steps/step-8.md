@@ -148,7 +148,7 @@ The code was restored exactly afterwards: yes (every break was made in a deleted
 
 ## Deploy (after approval)
 
-Step 7's deploy, done after its commit (`da206fe`), with the new restart retry in place:
+Step 7's deploy, done after its commit (`d7ed1da`), with the new restart retry in place:
 
 | Command | Smoke test | Rolled back? |
 |---|---|---|

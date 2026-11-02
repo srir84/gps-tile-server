@@ -159,7 +159,7 @@ The code was restored exactly afterwards: yes (every break was made in a deleted
 
 ## Deploy (after approval)
 
-Step 5b's deploy, done after its commit (`e46af4d`), with `~/.local/gpstiles/datasets.conf` listing `data/build/tdrive.gpt` and `data/build/tdrive-sample.gpt`:
+Step 5b's deploy, done after its commit (`53269af`), with `~/.local/gpstiles/datasets.conf` listing `data/build/tdrive.gpt` and `data/build/tdrive-sample.gpt`:
 
 | Command | Smoke test | Rolled back? |
 |---|---|---|

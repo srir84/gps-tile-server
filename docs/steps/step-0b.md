@@ -41,7 +41,7 @@ tools/review.sh 0b → .review/step-0b/round-1.{diff,prompt.md,md,log}
 | `tests/e2e/test_review_script.py` | added | 9 tests: the review script with a fake codex |
 | `docs/TESTING.md` §5, §12.2–§12.5 | changed | layout, and what was built (see Decisions) |
 | `AGENTS.md`, `docs/DESIGN.md` §10 + §12.2, `docs/steps/TEMPLATE.md` | changed | review files in `.review/`, staged-files pre-commit |
-| `PROGRESS.md` | changed | 0a approved (`0e0e3fb`), 0b status |
+| `PROGRESS.md` | changed | 0a approved (`d29b501`), 0b status |
 
 639 lines in 11 new files, plus 26 Makefile lines. Review the full change: `.review/step-0b/round-2.diff` (the final one).
 

@@ -149,7 +149,7 @@ The code was restored exactly afterwards: yes (every break was made in a deleted
 
 ## Deploy (after approval)
 
-Step 6's deploy, done after its commit (`e68e36f`):
+Step 6's deploy, done after its commit (`faf6879`):
 
 | Command | Smoke test | Rolled back? |
 |---|---|---|
