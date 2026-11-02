@@ -423,7 +423,6 @@ With 0 points every stat is 0. A file whose size isn't 256 + 8 × count, whose l
 gps-tile-server/
 ├── AGENTS.md                rules for agents: workflow, commands, done
 ├── CLAUDE.md                one line: @AGENTS.md
-├── PROGRESS.md              handoff: current step, status, next action (local only, ignored by git)
 ├── Makefile                 build, check, sanitize, verify, deploy (step 0a+)
 ├── README.md                how to run                       (step 9)
 ├── docs/
@@ -636,7 +635,7 @@ The goal (`PROJECT_IDEAS.md` §8.5): "Polyline reader works; ~80M points still b
 
 The goal (`PROJECT_IDEAS.md` §8.5): "Over 1 billion points; build must work out-of-core (data larger than RAM); tile latency stays in milliseconds". Two facts change the plan's dataset: TLC's files now hold places only for 2009 and 2010 (later years hold zone numbers), about 680 million pickup and dropoff points, short of a billion; and a zoomed-out tile is drawn point by point (164 ms at Porto's 83 million). So: fast tiles first, then NYC's 2009–2010 taxis, then a billion points from NOAA's ship positions (AIS, plain CSV, no account; planned for stage 5, moved here).
 
-**Time per point (§14's decision before stage 4):** not stored, for now. The plan asked for this decision before stage 4 because NYC is where time matters most (its "Time filter (\"only 8–9 am\")") and rebuilding billions of points later is costly. Here that cost looks small: the raw files stay in `data/raw/`, and NYC's 680 million points should import in about 4 minutes and build in about 1 (estimated from one month: 28 million rows in 9 s; step 14 measures it). A time filter needs more than a column: a second sort key or a file per period, and a format change (DESIGN §9.3). Decided by the builder on 2026-11-01 to keep going under the developer's "proceed with all stages"; **the developer should confirm or reverse it** (`PROGRESS.md`).
+**Time per point (§14's decision before stage 4):** not stored, for now. The plan asked for this decision before stage 4 because NYC is where time matters most (its "Time filter (\"only 8–9 am\")") and rebuilding billions of points later is costly. Here that cost looks small: the raw files stay in `data/raw/`, and NYC's 680 million points should import in about 4 minutes and build in about 1 (estimated from one month: 28 million rows in 9 s; step 14 measures it). A time filter needs more than a column: a second sort key or a file per period, and a format change (DESIGN §9.3). Decided by the builder on 2026-11-01 to keep going under the developer's "proceed with all stages"; **confirmed by the developer on 2026-11-02**.
 
 | Step | What we build | How we check it |
 |---|---|---|
@@ -705,7 +704,7 @@ The goal (`PROJECT_IDEAS.md` §8.5): "GPX reader; multi-billion-point worldwide 
 
 | Feature | When |
 |---|---|
-| Time filter / time animation | Not stored (decided 2026-11-01, §12.6; the developer may reverse it): would change the file format |
+| Time filter / time animation | Not stored (decided 2026-11-01, confirmed by the developer 2026-11-02, §12.6): would change the file format |
 | Compare two datasets | After the time decision |
 | Filter by other columns (fare, vehicle) | Later; needs a new index design |
 | Linux-only speedups (io_uring, O_DIRECT) | After macOS stages work |

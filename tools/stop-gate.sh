@@ -35,7 +35,7 @@ mkdir -p build && echo "$blocks" > "$COUNTER"
 {
     echo "stop-gate: make check fails (block $blocks of $MAX_BLOCKS). Fix it before ending the turn."
     if [ "$blocks" -eq "$MAX_BLOCKS" ]; then
-        echo "Last block. If you can't fix it, write the problem under \"Blocked on\" in PROGRESS.md, then stop."
+        echo "Last block. If you can't fix it, write the problem under \"Blocked on\" in docs/steps/step-N.md, then stop."
     fi
     echo "--- last 40 lines of: $CHECK_CMD"
     printf '%s\n' "$output" | tail -n 40

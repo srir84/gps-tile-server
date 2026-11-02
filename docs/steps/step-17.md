@@ -6,6 +6,7 @@
 |---|---|
 | **Built** | `tools/fetch-opensky.py`: one day of OpenSky's public aircraft positions, each hourly file kept only when its size and S3 ETag (MD5, or a multipart ETag checked part by part) match the bucket's listing · Monday 2022-06-27 worldwide: 24 hourly tars (3.9 GB) streamed through `tar -xOf \| gunzip` into import and built into one `.gpt` of **56,869,562 points** · its checks · and, prepared for step 18, `tools/fetch-gbif.py` (GBIF's occurrence service was down) |
 | **Status** | approved (all-stages go-ahead 2026-11-01; OpenSky route chosen by the developer 2026-11-02) |
+| **Blocked on** | Step 18 (GBIF): GBIF's download service answers HTTP 500 (since 2026-11-02 13:56); `tools/fetch-gbif.py data/raw/gbif 2024` is retried, and a rerun never asks GBIF twice |
 | **Date** | 2026-11-02 |
 | **Agent(s)** | Claude Opus 5.5 main · Codex reviewer (gpt-6-astra, high effort) · Claude Opus 5.5 skeptic reviewer (separate agent) |
 

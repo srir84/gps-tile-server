@@ -8,7 +8,7 @@ How every step is tested, and how agents get fast feedback while building. Summa
 
 Agents build, test, review, validate and fix on their own inside a step. The developer is needed only at the approval gate, and before publishing a release.
 
-![Flowchart](diagrams/TESTING-d1-3be4ae76.png)
+![Flowchart](diagrams/TESTING-d1-02baf29c.png)
 
 <details><summary>Diagram source (mermaid — flowchart)</summary>
 
@@ -29,8 +29,8 @@ flowchart TB
   D --> SM{"Smoke test<br/>passes?"}
   SM -->|no| RB["Automatic rollback<br/>to previous version"]
   RB --> FX
-  SM -->|yes| DONE["Step done<br/>PROGRESS.md updated"]
-  FX -->|3 tries failed| BL["STOP<br/>write Blocked on in PROGRESS.md<br/>developer decides"]
+  SM -->|yes| DONE["Step done<br/>step file set to approved"]
+  FX -->|3 tries failed| BL["STOP<br/>write Blocked on in the step file<br/>developer decides"]
 ```
 
 </details>
@@ -289,7 +289,7 @@ The "break on purpose" proof is not part of `make verify`. The agent does it by 
 | When | Every time a Claude agent tries to end its turn |
 | Does | If `src/`, `tests/` or the `Makefile` differ from the last commit (new files included), run `make -s check` |
 | Red | Block the stop (exit 2) and send the last 40 lines back to the agent |
-| Loop guard | After 3 blocks in a row, let the agent stop. It must write the problem under "Blocked on" in `PROGRESS.md`. Counter: `build/stop-gate.count` (ignored, cleared by `make clean`). A green check resets it |
+| Loop guard | After 3 blocks in a row, let the agent stop. It must write the problem under "Blocked on" in the step file. Counter: `build/stop-gate.count` (ignored, cleared by `make clean`). A green check resets it |
 | Time | `make check` stays under 10 s, so every stop stays fast |
 | Codex as builder | Codex has no Stop hook. AGENTS.md rule instead: run `make check` before ending a turn |
 
@@ -299,7 +299,7 @@ The "break on purpose" proof is not part of `make verify`. The agent does it by 
 |---|---|
 | Command | `tools/review.sh N` → `codex exec -s read-only -C <repo> -o .review/step-N/round-K.md` |
 | Files | `.review/step-N/`: `round-K.diff` (input), `round-K.prompt.md`, `round-K.md` (findings), `round-K.log`. Git-ignored, and outside `build/` so `make clean` can't delete them |
-| Codex gets | The step's full change, new files included, built in a temporary index so the real one is untouched: `git add -A` then `git diff --cached <base>`. `<base>` = the last commit (the last approved step), or the empty tree before the first commit. The step file and `PROGRESS.md` are left out. Plus its DESIGN §12.2 rows · TESTING §9 row · AGENTS.md rules. **Not** the builder's summary or opinion |
+| Codex gets | The step's full change, new files included, built in a temporary index so the real one is untouched: `git add -A` then `git diff --cached <base>`. `<base>` = the last commit (the last approved step), or the empty tree before the first commit. The step file is left out. Plus its DESIGN §12.2 rows · TESTING §9 row · AGENTS.md rules. **Not** the builder's summary or opinion |
 | Codex is asked for | Bugs, missing tests, security problems at inputs (files, HTTP), drift from DESIGN. Each finding: severity, `file:line`, how it fails |
 | Codex never | Edits files. The sandbox is read-only |
 | Builder then | Fixes each finding, or writes why not in the step file under "Review" |
@@ -355,7 +355,7 @@ The "break on purpose" proof is not part of `make verify`. The agent does it by 
 
 | Limit | Value | Then |
 |---|---|---|
-| Fix tries for the same problem | 3 | Stop, "Blocked on" in PROGRESS.md |
+| Fix tries for the same problem | 3 | Stop, "Blocked on" in the step file |
 | Review rounds | 2 | Developer decides on the leftover findings |
 | Stop-hook blocks in a row | 3 | Agent may stop, must record the blocker |
 | Builder and reviewer disagree | none | Developer decides. Neither one overrules the other |

@@ -7,7 +7,8 @@ Copy this file to `docs/steps/step-N.md` and fill in every section. Keep it shor
 | | |
 |---|---|
 | **Built** | One line |
-| **Status** | waiting for review |
+| **Status** | in progress · waiting for review · approved |
+| **Blocked on** | nothing |
 | **Date** | YYYY-MM-DD |
 | **Agent(s)** | Who worked on it (e.g. Claude Opus 5.5 main · Codex reviewer) |
 

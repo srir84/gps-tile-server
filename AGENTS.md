@@ -7,10 +7,9 @@ Rules for any agent (Claude, Codex, others) working in this repo. Humans: this i
 - Built in small, reviewed steps. A human approves every step before the next one starts.
 
 ## Read first, in this order
-1. `PROGRESS.md`: where the project is right now, and the exact next action. It is the builder's local working log, not in git (developer's choice, 2026-11-02): in a fresh clone it is missing, so start from the newest `docs/steps/step-N.md` and ask the developer.
+1. The newest `docs/steps/step-N.md`: what was built last, its status, what is blocked, and what comes next.
 2. `docs/DESIGN.md`: what we are building (architecture, formats, endpoints, step plan in section 12, known answers in section 13).
 3. `docs/TESTING.md`: how to test each step (levels, answer sources, tests per step).
-4. The latest `docs/steps/step-N.md`: what the previous step did.
 
 ## Commands
 Use only these to build, test, review and deploy. Build and test commands exist from step 0a, loop tools from 0b, later ones as marked.
@@ -31,18 +30,18 @@ Use only these to build, test, review and deploy. Build and test commands exist 
 | `make clean` | Remove `build/` |
 
 ## Workflow (every step)
-1. Read `PROGRESS.md`. Work only on the step it names.
-2. Set the step to `in progress` in `PROGRESS.md`.
+1. Work only on the step the newest step file's "Next" names (or the developer asks for).
+2. Start `docs/steps/step-N.md` from `docs/steps/TEMPLATE.md`, status `in progress`.
 3. Build the step as `docs/DESIGN.md` section 12.2 (stage 1) or 12.4 (stage 2) describes. Nothing from later steps.
 4. Verify: `make verify` green (step 0a: `make check` + `make sanitize`), plus the bug-catching proof (see "Definition of done").
 5. Review: `tools/review.sh N` (in step 0a, before the script exists: `codex exec -s read-only` by hand). Fix each finding or write why not. At most 2 rounds.
 6. Validate: run the step's validation for real (CLI output, headless Chrome screenshot for steps 4 and 6) and look at the result.
-7. Write `docs/steps/step-N.md` from `docs/steps/TEMPLATE.md`.
-8. Update `PROGRESS.md`: status `waiting for review`, last verified results, the next action.
+7. Fill in `docs/steps/step-N.md`.
+8. Set its status to `waiting for review`, with the verified results and the next action.
 9. **Stop.** Do not commit, deploy or start the next step.
-10. After the developer approves: commit (message `step N: <name>`). From step 5b on, `make deploy`. Set the status to `approved` with the commit hash, and set the next action.
+10. After the developer approves: commit (message `step N: <name>`). From step 5b on, `make deploy`. Set the step file's status to `approved`, and its next action.
 
-Loop limits (TESTING.md §12.8): 3 fix tries per problem, 2 review rounds, then stop and write the problem under "Blocked on" in `PROGRESS.md`. If you and the reviewer disagree, the developer decides.
+Loop limits (TESTING.md §12.8): 3 fix tries per problem, 2 review rounds, then stop and write the problem under "Blocked on" in the step file. If you and the reviewer disagree, the developer decides.
 Codex as builder: there is no Stop hook for you, so run `make check` before ending every turn.
 
 Picking up mid-step: trust the files and `git status`, not memory. Re-run `make check` before building on someone else's work.
@@ -80,7 +79,7 @@ Picking up mid-step: trust the files and `git status`, not memory. Re-run `make 
 - Datasets that need an account (Kaggle, GBIF, OpenSky): never create accounts yourself. Ask the developer, who registers with [email removed].
 
 ## Docs
-- Keep docs minimal: this file, `PROGRESS.md` (local only), `docs/DESIGN.md`, `docs/TESTING.md`, `docs/steps/`. Create a new doc only if the developer asks.
+- Keep docs minimal: this file, `docs/DESIGN.md`, `docs/TESTING.md`, `docs/steps/`. Create a new doc only if the developer asks.
 - Prefer diagrams and tables to prose.
 - Any `.md` with a ```mermaid diagram must be baked before you hand it over: `python3 ~/.agents/templates/bake_mermaid.py <file.md>`.
 - If the design needs to change, propose it in the step file under "Decisions". Do not edit DESIGN decisions silently.
