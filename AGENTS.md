@@ -93,3 +93,4 @@ Picking up mid-step: trust the files and `git status`, not memory. Re-run `make 
 - Turn off or bypass a hook (`--no-verify`, editing `.claude/settings.json` or `tools/stop-gate.sh`) to get past a red check.
 - Deploy before approval, or publish a release anywhere (push, upload) without the developer saying so.
 - Let the reviewer edit code. Codex runs read-only.
+- Push anywhere but `origin` (github.com/srir84/gps-tile-server, private), or commit or push as anyone but `srir84`. This repo's own git config sets both (`user.email` 179548959+srir84@users.noreply.github.com; pushes use gh's `srir84` login whatever account gh has active). Don't change that config.
