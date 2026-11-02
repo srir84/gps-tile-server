@@ -60,7 +60,7 @@ Status values: `not started` → `in progress` → `waiting for review` → `app
 
 | Step | Name | Status | Date | Commit | Review |
 |---|---|---|---|---|---|
-| 16 | GPX: OpenStreetMap's GPS traces + stage 5 report | approved | 2026-11-01 | (this commit) | `docs/steps/step-16.md` |
+| 16 | GPX: OpenStreetMap's GPS traces + stage 5 report | approved | 2026-11-01 | `7d59783` | `docs/steps/step-16.md` |
 
 ## Done before step 0 (planning)
 
@@ -77,6 +77,7 @@ Status values: `not started` → `in progress` → `waiting for review` → `app
 
 | Date | What | Command | Result |
 |---|---|---|---|
+| 2026-11-01 | Deploy of step 16 (`7d59783`); OpenStreetMap's GPS traces added to the service | `GPSTILES_PORT=8090 make deploy`, `cmp` with `make verify`'s build (the same), `datasets.conf`, `launchctl kickstart -k`, `tools/deploy.sh smoke` | smoke test green, no rollback · 9 datasets listed and drawn (pid 64955), 2,675,901,374 points among them |
 | 2026-11-01 | Step 16 after both review rounds (Codex: 2 medium + 1 low, then 2 medium + 1 low; Claude skeptic: 1 medium + 3 low, then 2 low; all fixed or filled in): `make verify` | `make verify` | unit 39/0 · e2e 140/0 under check and sanitize · check-data: 3 OSM files = the Python rules = Python's XML parser = metadata.xml · step-16: the whole dump re-imported → rows=2676451044 imported=2675901374 (= `osm_count.py`, DESIGN §13), 20 runs, tiles add up, the world page, p99 under 53 ms warm · VERIFY PASSED (about 1 h 30 min) |
 | 2026-11-01 | OpenStreetMap's GPS traces 2013 counted file by file, independent of gpstiles | `xz -dc … \| python3 -I tests/data/osm_count.py metadata.xml`; the 15 biggest mismatches through `xml.etree` | 2,676,451,044 track points in 848,059 files · `metadata.xml` 2,674,972,244: 99 early files hold 1,478,800 more (their points repeat; the XML parser = gpstiles on all 15) |
 | 2026-11-01 | OpenStreetMap's GPS traces imported and built for step 16 | `xz -dc \| tar -xOf - \| gpstiles import --gpx`, `build` | 27 min 12 s · rows=2676451044 imported=2675901374 skipped_zero=546151 skipped_out_of_range=3519 skipped_malformed=0 · build: 20 runs, 283 s, peak 1.08 GB, 21.4 GB `.gpt` |
