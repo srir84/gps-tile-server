@@ -255,4 +255,4 @@ AGENTS.md   instructions for the coding agents (CLAUDE.md and .claude/ point Cla
 - [Leaflet](https://leafletjs.com) 1.9.4: BSD 2-Clause (`www/leaflet/LICENSE`), compiled into the program.
 - Base map tiles: © OpenStreetMap contributors.
 - Datasets: their publishers' terms ([Datasets](#datasets-none-included)).
-- gpstiles itself: not chosen yet.
+- gpstiles itself: [MIT](LICENSE).

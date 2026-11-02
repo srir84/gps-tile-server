@@ -347,7 +347,7 @@ The "break on purpose" proof is not part of `make verify`. The agent does it by 
 |---|---|
 | When | From step 9. Only on an approved commit with a clean tree |
 | `make release-test` | Same package and smoke test in `build/release-test/`, no tag. Used before approval |
-| `make release VERSION=x.y.z` | Optimized build of the commit itself (`git archive`), for macOS 13 or later → `dist/gpstiles-x.y.z-macos-arm64.tar.gz` (binary, README, Leaflet's license, and `LICENSE` once there is one) + `.sha256` file → local git tag `vx.y.z` |
+| `make release VERSION=x.y.z` | Optimized build of the commit itself (`git archive`), for macOS 13 or later → `dist/gpstiles-x.y.z-macos-arm64.tar.gz` (binary, README, Leaflet's license, and the MIT `LICENSE`) + `.sha256` file → local git tag `vx.y.z` |
 | Smoke test | Unpack into a temp folder. The unpacked `gpstiles` imports a 10-row CSV the test writes there, builds it, serves it on `--port 0`, and the smoke checks run against it |
 | Publishing | Uploading anywhere (e.g. GitHub Releases) is outward-facing: only after the developer says so |
 | Later | Linux build (stage 5+) |
