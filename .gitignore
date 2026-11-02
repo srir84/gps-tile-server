@@ -3,5 +3,6 @@
 /build/
 /dist/
 /.review/
+/PROGRESS.md
 .DS_Store
 __pycache__/

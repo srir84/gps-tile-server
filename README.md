@@ -237,7 +237,7 @@ tests/      unit (C), end-to-end (Python), fixtures (tiny data), data checks, pe
 docs/       DESIGN.md (how and why, with pictures), TESTING.md, steps/ (what each step built and how it was checked)
 ```
 
-Built in 17 steps over five stages, from 10 million Beijing taxi points to 2.7 billion worldwide: [`PROGRESS.md`](PROGRESS.md) lists them, [`docs/steps/`](docs/steps) reports each one.
+Built in 17 steps over five stages, from 10 million Beijing taxi points to 2.7 billion worldwide; [`docs/steps/`](docs/steps) reports each one.
 
 ## Limits
 

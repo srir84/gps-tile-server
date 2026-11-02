@@ -16,7 +16,7 @@
 | **Language** | C11 + zlib. Map page: HTML + Leaflet |
 | **Runs on** | macOS laptop first, Linux later |
 | **First dataset** | T-Drive (Beijing taxis, ~10M points) |
-| **Status** | Stage 1 built (steps 0a–9, release v0.1.0, local only). Stage 2 (§12.4) in progress. `PROGRESS.md` has the details |
+| **Status** | Stages 1–5 built (steps 0a–17). Step 18 (GBIF) waits for GBIF's download service. Each step's report: `docs/steps/` |
 | **Plan source** | `../../PROJECT_IDEAS.md` sections 8–10 |
 
 ---
@@ -423,7 +423,7 @@ With 0 points every stat is 0. A file whose size isn't 256 + 8 × count, whose l
 gps-tile-server/
 ├── AGENTS.md                rules for agents: workflow, commands, done
 ├── CLAUDE.md                one line: @AGENTS.md
-├── PROGRESS.md              handoff: current step, status, next action
+├── PROGRESS.md              handoff: current step, status, next action (local only, ignored by git)
 ├── Makefile                 build, check, sanitize, verify, deploy (step 0a+)
 ├── README.md                how to run                       (step 9)
 ├── docs/
