@@ -44,18 +44,18 @@ Each line's validation runs again in every `make verify` (`tests/validate/step-N
 
 | Step | DESIGN: how you can tell it worked | Ticked: what showed it | Commit |
 |---|---|---|---|
-| 0a Set up | builds; a failing test makes `make check` fail | `step-0a.sh`: the failing test makes `make check` exit non-zero and prints its `catches:` line | `d29b501` |
-| 0b Loop tools | a failing test is caught by every guard · Codex returns a review | `step-0b.sh`: the Stop hook blocks, the commit is refused, `make verify` is red; Codex reviewed every step from 0b on (`.review/`) | `a56badb` |
-| 1 Map math | central Beijing → a square; that square on OpenStreetMap shows central Beijing | `gpstiles where 116.391 39.907 --zoom 10` → `10/843/388`, shown on OpenStreetMap in `docs/images/step-1-where-on-osm.png` | `d212336` |
-| 2 Read the raw data | 10,088,351 read · 23,357 at 0,0 · 103 impossible · 10,064,891 kept | `make check-data`: the import's counts = awk's = DESIGN §13 (and again above) | `ee1d0ec` |
-| 3a Sort and save | builds with lots and little memory identical · Python's sort matches · no temp files | `step-3a.sh`: default `--mem` and `--mem 1M` byte-identical, the points = Python's sort, peak memory below `--mem` + 16 MiB, nothing left | `a9cf975` |
-| 3b Read the saved file | 10,064,891 points · a square = its 4 children · Python's slow count agrees | `make check-data`: `info`, children summing to the parent, the count = Python's | `0b94797` |
-| 4 Draw a square | the bright lines sit on the real roads | `step-4.sh`: the tiles beside OpenStreetMap's (`docs/images/step-4-tiles.jpg`), pixels = Python's | `0d5b0c4` |
-| 5a Web server | a tile's address shows it · both datasets with their own counts · bad addresses → errors, the server keeps running | `step-5a.sh`: each dataset's tile = Python's pixel by pixel, counts = awk, bad URLs answered while it keeps serving | `79479b5` |
-| 5b Local deploy | a test install answers, a broken version is rolled back, it survives a restart · `make deploy` → 127.0.0.1:8080 | `step-5b.sh` (`make deploy-test`, 21 scenarios); the real deploys of steps 5b–8 (each step file) | `53269af` |
-| 6 Map page | looks like the mockup · ring roads, airport, street points · the switch changes the map | `step-6.sh`: headless Chrome, counts = DESIGN §13 and awk, a click on the switch; `docs/images/step-6-page.jpg` | `faf6879` |
-| 7 Count an area | a slow count gives the same number, for a drawn box and a hovered pixel | `step-7.sh`: the page's hover and a dragged box = Python's slow count on T-Drive | `d7ed1da` |
-| 8 Download an area | opens in Excel or Numbers · rows = box count · every point inside | `step-8.sh`: rows = the count = Python's points, inside the box as plain numbers; the page's Export link downloads them. Opening in Numbers by hand: not done by the agent (Python's csv reader instead) | `4898268` |
+| 0a Set up | builds; a failing test makes `make check` fail | `step-0a.sh`: the failing test makes `make check` exit non-zero and prints its `catches:` line | `673c69b` |
+| 0b Loop tools | a failing test is caught by every guard · Codex returns a review | `step-0b.sh`: the Stop hook blocks, the commit is refused, `make verify` is red; Codex reviewed every step from 0b on (`.review/`) | `02480bd` |
+| 1 Map math | central Beijing → a square; that square on OpenStreetMap shows central Beijing | `gpstiles where 116.391 39.907 --zoom 10` → `10/843/388`, shown on OpenStreetMap in `docs/images/step-1-where-on-osm.png` | `1e102a6` |
+| 2 Read the raw data | 10,088,351 read · 23,357 at 0,0 · 103 impossible · 10,064,891 kept | `make check-data`: the import's counts = awk's = DESIGN §13 (and again above) | `9db2550` |
+| 3a Sort and save | builds with lots and little memory identical · Python's sort matches · no temp files | `step-3a.sh`: default `--mem` and `--mem 1M` byte-identical, the points = Python's sort, peak memory below `--mem` + 16 MiB, nothing left | `08b30ae` |
+| 3b Read the saved file | 10,064,891 points · a square = its 4 children · Python's slow count agrees | `make check-data`: `info`, children summing to the parent, the count = Python's | `47c1a2e` |
+| 4 Draw a square | the bright lines sit on the real roads | `step-4.sh`: the tiles beside OpenStreetMap's (`docs/images/step-4-tiles.jpg`), pixels = Python's | `556fc61` |
+| 5a Web server | a tile's address shows it · both datasets with their own counts · bad addresses → errors, the server keeps running | `step-5a.sh`: each dataset's tile = Python's pixel by pixel, counts = awk, bad URLs answered while it keeps serving | `0e6b17f` |
+| 5b Local deploy | a test install answers, a broken version is rolled back, it survives a restart · `make deploy` → 127.0.0.1:8080 | `step-5b.sh` (`make deploy-test`, 21 scenarios); the real deploys of steps 5b–8 (each step file) | `958bdb1` |
+| 6 Map page | looks like the mockup · ring roads, airport, street points · the switch changes the map | `step-6.sh`: headless Chrome, counts = DESIGN §13 and awk, a click on the switch; `docs/images/step-6-page.jpg` | `eb9088b` |
+| 7 Count an area | a slow count gives the same number, for a drawn box and a hovered pixel | `step-7.sh`: the page's hover and a dragged box = Python's slow count on T-Drive | `5db12b0` |
+| 8 Download an area | opens in Excel or Numbers · rows = box count · every point inside | `step-8.sh`: rows = the count = Python's points, inside the box as plain numbers; the page's Export link downloads them. Opening in Numbers by hand: not done by the agent (Python's csv reader instead) | `765ad07` |
 | 9 Report + release | a table of build time and tile speed · the package runs on its own · every check ticked | this file: the tables above; `step-9.sh`: `make release-test`'s unpacked package passes its smoke test on its own, no tag, nothing in `dist/`, and a real `make release` in a throwaway repo; `make release VERSION=0.1.0` itself runs after this commit (`PROGRESS.md`) | this commit |
 
 ## Design
@@ -210,7 +210,7 @@ The code was restored exactly afterwards: yes (every break was made in a deleted
 
 ## Deploy (after approval)
 
-Step 8's deploy, done after its commit (`4898268`):
+Step 8's deploy, done after its commit (`765ad07`):
 
 | Command | Smoke test | Rolled back? |
 |---|---|---|
