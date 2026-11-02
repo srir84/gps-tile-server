@@ -1,0 +1,94 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="640" viewBox="0 0 1200 640" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif">
+  <!-- How gpstiles works: prepare once (import, build), then serve. Opaque background so it reads in light and dark themes. -->
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#1d2840"/>
+    </marker>
+  </defs>
+  <rect width="1200" height="640" rx="14" fill="#ffffff"/>
+
+  <!-- 1. PREPARE -->
+  <rect x="10" y="14" width="1180" height="188" rx="10" fill="#f6f5f1"/>
+  <text x="28" y="40" font-size="16" font-weight="700" fill="#5d6577">1  PREPARE · once per dataset · two commands</text>
+
+  <rect x="24" y="58" width="190" height="124" fill="#f7e8cb" stroke="#b87a1e" stroke-width="2"/>
+  <text x="119" y="86" font-size="17" font-weight="700" fill="#1d2840" text-anchor="middle">Your data</text>
+  <text x="119" y="112" font-size="13.5" fill="#4b5263" text-anchor="middle">CSV · TSV · GPX</text>
+  <text x="119" y="132" font-size="13.5" fill="#4b5263" text-anchor="middle">files, or a pipe from</text>
+  <text x="119" y="152" font-size="13.5" fill="#4b5263" text-anchor="middle">zip · xz · tar · gunzip</text>
+
+  <rect x="254" y="58" width="200" height="124" rx="12" fill="#d4ebe6" stroke="#138a7e" stroke-width="2"/>
+  <text x="354" y="86" font-size="17" font-weight="700" fill="#1d2840" text-anchor="middle">gpstiles import</text>
+  <text x="354" y="112" font-size="13.5" fill="#4b5263" text-anchor="middle">reads lon, lat</text>
+  <text x="354" y="132" font-size="13.5" fill="#4b5263" text-anchor="middle">each point → one 64-bit</text>
+  <text x="354" y="152" font-size="13.5" fill="#4b5263" text-anchor="middle">Z-order code; bad rows</text>
+  <text x="354" y="170" font-size="13.5" fill="#4b5263" text-anchor="middle">counted and skipped</text>
+
+  <rect x="494" y="58" width="160" height="124" fill="#f7e8cb" stroke="#b87a1e" stroke-width="2"/>
+  <text x="574" y="86" font-size="17" font-weight="700" fill="#1d2840" text-anchor="middle">.pts file</text>
+  <text x="574" y="112" font-size="13.5" fill="#4b5263" text-anchor="middle">8 bytes a point</text>
+  <text x="574" y="132" font-size="13.5" fill="#4b5263" text-anchor="middle">unsorted</text>
+
+  <rect x="694" y="58" width="200" height="124" rx="12" fill="#d4ebe6" stroke="#138a7e" stroke-width="2"/>
+  <text x="794" y="86" font-size="17" font-weight="700" fill="#1d2840" text-anchor="middle">gpstiles build</text>
+  <text x="794" y="112" font-size="13.5" fill="#4b5263" text-anchor="middle">external merge sort:</text>
+  <text x="794" y="132" font-size="13.5" fill="#4b5263" text-anchor="middle">any size, fixed memory</text>
+  <text x="794" y="152" font-size="13.5" fill="#4b5263" text-anchor="middle">(--mem, default 1 GiB)</text>
+
+  <rect x="944" y="70" width="230" height="124" fill="#f7e8cb" stroke="#b87a1e" stroke-width="2"/>
+  <rect x="938" y="64" width="230" height="124" fill="#f7e8cb" stroke="#b87a1e" stroke-width="2"/>
+  <rect x="934" y="58" width="230" height="124" fill="#f7e8cb" stroke="#b87a1e" stroke-width="2"/>
+  <text x="1049" y="86" font-size="17" font-weight="700" fill="#1d2840" text-anchor="middle">.gpt file, one per dataset</text>
+  <text x="1049" y="112" font-size="13.5" fill="#4b5263" text-anchor="middle">header + sorted codes</text>
+  <text x="1049" y="132" font-size="13.5" fill="#4b5263" text-anchor="middle">the only file served</text>
+  <text x="1049" y="152" font-size="13.5" fill="#4b5263" text-anchor="middle">2.7 billion points = 21 GB</text>
+
+  <line x1="214" y1="120" x2="250" y2="120" stroke="#1d2840" stroke-width="2.5" marker-end="url(#arrow)"/>
+  <line x1="454" y1="120" x2="490" y2="120" stroke="#1d2840" stroke-width="2.5" marker-end="url(#arrow)"/>
+  <line x1="654" y1="120" x2="690" y2="120" stroke="#1d2840" stroke-width="2.5" marker-end="url(#arrow)"/>
+  <line x1="894" y1="120" x2="930" y2="120" stroke="#1d2840" stroke-width="2.5" marker-end="url(#arrow)"/>
+
+  <!-- 2. SERVE -->
+  <rect x="10" y="216" width="1180" height="190" rx="10" fill="#eef5f3"/>
+  <text x="28" y="242" font-size="16" font-weight="700" fill="#5d6577">2  SERVE · on your machine · read-only</text>
+  <line x1="1049" y1="182" x2="1049" y2="256" stroke="#1d2840" stroke-width="2.5" marker-end="url(#arrow)"/>
+  <text x="1040" y="226" font-size="13" fill="#1d2840" text-anchor="end">memory-mapped: no database, read on demand</text>
+
+  <rect x="24" y="260" width="1150" height="128" rx="12" fill="#d4ebe6" stroke="#138a7e" stroke-width="2"/>
+  <text x="48" y="290" font-size="18" font-weight="700" fill="#1d2840">gpstiles serve</text>
+  <text x="200" y="290" font-size="14" fill="#4b5263">one small C program · 127.0.0.1 · up to 32 datasets</text>
+  <text x="48" y="320" font-size="14.5" fill="#1d2840">• a map tile at any zoom is one slice of the sorted file: two binary searches find it</text>
+  <text x="48" y="344" font-size="14.5" fill="#1d2840">• it is counted (dense squares by quarters) and drawn as a 256 × 256 PNG heat tile in milliseconds</text>
+  <text x="48" y="368" font-size="14.5" fill="#1d2840">• exact point counts and CSV export for any box · the map page (Leaflet) is built into the program</text>
+
+  <!-- 3. USE -->
+  <rect x="10" y="420" width="1180" height="160" rx="10" fill="#f6f5f1"/>
+  <text x="28" y="446" font-size="16" font-weight="700" fill="#5d6577">3  USE</text>
+
+  <rect x="150" y="470" width="380" height="92" rx="12" fill="#ffffff" stroke="#1d2840" stroke-width="2"/>
+  <text x="340" y="500" font-size="17" font-weight="700" fill="#1d2840" text-anchor="middle">Browser</text>
+  <text x="340" y="526" font-size="13.5" fill="#4b5263" text-anchor="middle">pan · zoom · hover for counts</text>
+  <text x="340" y="546" font-size="13.5" fill="#4b5263" text-anchor="middle">draw a box · export CSV</text>
+
+  <rect x="670" y="470" width="380" height="92" rx="12" fill="#ffffff" stroke="#1d2840" stroke-width="2"/>
+  <text x="860" y="500" font-size="17" font-weight="700" fill="#1d2840" text-anchor="middle">Your scripts and apps</text>
+  <text x="860" y="526" font-size="13.5" fill="#4b5263" text-anchor="middle">HTTP API: PNG tiles,</text>
+  <text x="860" y="546" font-size="13.5" fill="#4b5263" text-anchor="middle">JSON counts, CSV points</text>
+
+  <line x1="340" y1="392" x2="340" y2="466" stroke="#1d2840" stroke-width="2.5" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
+  <line x1="860" y1="392" x2="860" y2="466" stroke="#1d2840" stroke-width="2.5" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
+
+  <rect x="20" y="482" width="110" height="68" fill="#f0f0f0" stroke="#6a7080" stroke-width="1.5" stroke-dasharray="6 4"/>
+  <text x="75" y="508" font-size="12.5" fill="#4b5263" text-anchor="middle">base map</text>
+  <text x="75" y="526" font-size="12.5" fill="#4b5263" text-anchor="middle">OpenStreetMap</text>
+  <text x="75" y="542" font-size="12.5" fill="#4b5263" text-anchor="middle">(internet)</text>
+  <line x1="130" y1="516" x2="146" y2="516" stroke="#6a7080" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- legend -->
+  <rect x="28" y="600" width="26" height="16" rx="4" fill="#d4ebe6" stroke="#138a7e" stroke-width="1.5"/>
+  <text x="62" y="613" font-size="13" fill="#4b5263">the program (one 300 KB binary, C11 + zlib)</text>
+  <rect x="380" y="600" width="26" height="16" fill="#f7e8cb" stroke="#b87a1e" stroke-width="1.5"/>
+  <text x="414" y="613" font-size="13" fill="#4b5263">a file on disk</text>
+  <rect x="540" y="600" width="26" height="16" fill="#f0f0f0" stroke="#6a7080" stroke-width="1.5" stroke-dasharray="4 3"/>
+  <text x="574" y="613" font-size="13" fill="#4b5263">not part of this project</text>
+</svg>
