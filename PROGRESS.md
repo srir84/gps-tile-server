@@ -63,7 +63,7 @@ Status values: `not started` → `in progress` → `waiting for review` → `app
 | Step | Name | Status | Date | Commit | Review |
 |---|---|---|---|---|---|
 | 16 | GPX: OpenStreetMap's GPS traces + stage 5 report | approved | 2026-11-01 | `7d59783` | `docs/steps/step-16.md` |
-| 17 | OpenSky's aircraft positions (DS-9) | approved | 2026-11-02 | (this commit) | `docs/steps/step-17.md` |
+| 17 | OpenSky's aircraft positions (DS-9) | approved | 2026-11-02 | `b74be96` | `docs/steps/step-17.md` |
 
 ## Done before step 0 (planning)
 
@@ -80,6 +80,7 @@ Status values: `not started` → `in progress` → `waiting for review` → `app
 
 | Date | What | Command | Result |
 |---|---|---|---|
+| 2026-11-02 | Deploy of step 17 (`b74be96`); OpenSky added to the service; pushed | `GPSTILES_PORT=8090 make deploy`, `datasets.conf`, `launchctl kickstart -k`, `tools/deploy.sh smoke`, `git push` | smoke test green, no rollback · 10 datasets listed and drawn (pid 25617), OpenSky's 56,869,562 points among them · pushed to github.com/srir84/gps-tile-server (private) |
 | 2026-11-02 | Step 17 after both review rounds (Codex: 3 medium + 1 low, then 2 medium; Claude skeptic: 3 medium + 6 low, then 2 medium + 1 low; all fixed): `make verify` | `make verify` (twice) | unit 39/0 · e2e 154/0 under check and sanitize · check-data: OpenSky hours 00 and 12 = awk, hour 00's codes and 2 airports = Python · step-17: the day = awk (DESIGN §13), tiles add up, the page, p99 14.84 ms · VERIFY PASSED on the second run; the first stopped at step-16's bench (107.95 ms at zoom 1, limit 100; 51 ms alone; 98.55 ms in the second run) |
 | 2026-11-02 | OpenSky's sample day fetched and counted | `tools/fetch-opensky.py data/raw/opensky 2022-06-27`; awk over every hour | 24 hours, 3,860,377,600 bytes, each = the listing's size and ETag (hours 14-17 multipart, 42 parts of 5 MiB) · rows=61296085 imported=56869562 skipped_malformed=4426523 (exactly the rows with no position) = gpstiles |
 | 2026-11-02 | Pushed steps 0–16 to the developer's private repo | `gh repo create srir84/gps-tile-server --private --source . --push` | https://github.com/srir84/gps-tile-server, private, branch main |
