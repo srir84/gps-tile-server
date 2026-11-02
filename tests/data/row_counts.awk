@@ -1,11 +1,12 @@
 # row_counts.awk: DESIGN §8's row rules in awk, for any comma-separated dataset: the independent count
 # `make check-data` compares `gpstiles import` with (TESTING.md §6). The columns and the header lines to
-# skip at the start of each file come in as variables, as in `gpstiles import`:
-#   LC_ALL=C awk -v LON=3 -v LAT=4 [-v SKIP=N] -f row_counts.awk FILE...
+# skip at the start of each file come in as variables, as in `gpstiles import` (DELIM: the separator, a comma if not
+# given; -v DELIM='\t' for tabs, as GBIF's files, step 18):
+#   LC_ALL=C awk -v LON=3 -v LAT=4 [-v SKIP=N] [-v DELIM=C] -f row_counts.awk FILE...
 # LC_ALL=C so that length() counts bytes. Limit: macOS's awk ends a line at a NUL byte, so data with NUL bytes needs
 # another answer source (none of ours has any).
 BEGIN {
-    FS = ","
+    FS = DELIM == "" ? "," : DELIM
     NUM = "^[-+]?([0-9]+[.]?[0-9]*|[.][0-9]+)([eE][-+]?[0-9]+)?$"
     MAX_LAT = 85.05112877980659
 }

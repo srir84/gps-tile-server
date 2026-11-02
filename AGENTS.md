@@ -75,6 +75,8 @@ Picking up mid-step: trust the files and `git status`, not memory. Re-run `make 
 - The NYC taxis 2009–2010 (step 14) are in `data/raw/nyc-taxi/` (24 Parquet files); DuckDB, for them only, in `data/tools/venv/` (not part of the program or `make check`).
 - NOAA's AIS ship positions, January–May 2023 (step 15), are in `data/raw/ais/` (151 zips from `tools/fetch-ais.sh`).
 - OpenStreetMap's GPS traces of 2013 (step 16) are in `data/raw/osm-gps/` (the `tar.xz`, its `.md5`, and `metadata.xml` taken out of it).
+- OpenSky's public aircraft positions of Monday 2022-06-27 (step 17) are in `data/raw/opensky/` (24 hourly tars from `tools/fetch-opensky.py`). OpenSky's full history (Trino) is only for institutions, so it isn't used.
+- GBIF's 2024 occurrences (step 18) are in `data/raw/gbif/` (the zip, `download.json` with its DOI, `state.json`), fetched with the developer's GBIF login from `~/.config/gpstiles/gbif.netrc` (outside the repo; never print, copy or commit it).
 - Datasets that need an account (Kaggle, GBIF, OpenSky): never create accounts yourself. Ask the developer, who registers with [email removed].
 
 ## Docs

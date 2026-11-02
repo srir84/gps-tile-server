@@ -652,15 +652,19 @@ The goal (`PROJECT_IDEAS.md` §8.5): "Over 1 billion points; build must work out
 
 ### 12.7 Stage 5 steps (GPX, world datasets)
 
-The goal (`PROJECT_IDEAS.md` §8.5): "GPX reader; multi-billion-point worldwide datasets" (DS-6 OpenStreetMap's GPS traces, DS-7 AIS, DS-8 GBIF, DS-9 OpenSky). DS-7 was done in stage 4 (step 15). DS-8 and DS-9 need accounts, which the builder never makes (`AGENTS.md`): they wait for the developer to register ([email removed]); their import needs no new code (CSV/TSV with named latitude and longitude columns: import options, or Parquet through a converter as in step 14).
+The goal (`PROJECT_IDEAS.md` §8.5): "GPX reader; multi-billion-point worldwide datasets" (DS-6 OpenStreetMap's GPS traces, DS-7 AIS, DS-8 GBIF, DS-9 OpenSky). DS-7 was done in stage 4 (step 15). DS-8 and DS-9 need accounts, which the builder never makes (`AGENTS.md`): they wait for the developer to register ([email removed]); their import needs no new code (CSV/TSV with named latitude and longitude columns: import options, or Parquet through a converter as in step 14). The developer registered both on 2026-11-02. OpenSky's full history (its Trino database) is only for research institutions, aviation authorities and governments, so DS-9 uses OpenSky's pre-curated public samples for individuals (one Monday a week, 2020–2022; no account needed); DS-8 is one GBIF download, made with the developer's login (kept in a private file outside the repo).
 
 | Step | What we build | How we check it |
 |---|---|---|
 | 16 GPX | `import --gpx`: every `<trkpt ...>` start tag of an XML stream is a row, its `lat` and `lon` attributes the place (in any order, either quote; tags may span lines). OpenStreetMap's public GPS traces of 2013 (22 GB of `tar.xz`), streamed through `xz -dc \| tar -xOf -` into import, built and served. Then the stage 5 report | Counts = Python's own XML parser on sample files · the dump's track points = Python's count file by file (planned: `metadata.xml`'s sum, which is short by 99 files: §13, step 16's Decisions) · tiles add up · the world map of GPS traces · bench |
+| 17 OpenSky | `tools/fetch-opensky.py`: one day of OpenSky's public aircraft positions (Monday 2022-06-27: 24 hourly tars, each kept only when its size and S3 ETag match the bucket's listing); each hour streamed through `tar -xOf \| gunzip` into import, built and served | Counts = `awk` · 2 airports' tiles = Python · tiles add up · the world's flights · bench |
+| 18 GBIF | `tools/fetch-gbif.py`: one GBIF occurrence download (every 2024 occurrence with coordinates, tab-separated), requested once with the developer's login and waited for; streamed through `unzip -p` into `import --delim tab` | rows = GBIF's own `totalRecords` · counts = `awk` · tiles add up · bench |
 
 | Step | Builds | You validate by | Expected result |
 |---|---|---|---|
 | 16 | `import --gpx` (DESIGN §8), `tests/data/check_osm.py`, the stage 5 report | `xz -dc gpx-planet-2013-04-09.tar.xz \| tar -xOf - \| gpstiles import --gpx -o osm.pts /dev/stdin` · `build` · `bench` · the page | rows = `tests/data/osm_count.py` (= `metadata.xml`'s sum + 99 files it undercounts, §13) · samples = Python's XML parser · tiles in milliseconds |
+| 17 | `tools/fetch-opensky.py`, `tests/data/check_opensky.py` | per hour `tar -xOf … \| gunzip \| gpstiles import --lat-col 3 --lon-col 4 --skip 1` · `build` · `bench` · the page | counts = `awk` over the whole day · airports' tiles = Python |
+| 18 | `tools/fetch-gbif.py`, `tests/data/check_gbif.py`, the stage 5 report | `unzip -p … \| gpstiles import --delim tab` (columns from the header) · `build` · `bench` · the page | rows = GBIF's `totalRecords` · counts = `awk` |
 
 ---
 
@@ -690,6 +694,8 @@ The goal (`PROJECT_IDEAS.md` §8.5): "GPX reader; multi-billion-point worldwide 
 | OpenStreetMap GPS traces 2013 | `gpx-planet-2013-04-09.tar.xz` from planet.openstreetmap.org/gps/: 22,261,751,900 bytes, MD5 `ef0ac17afbaccd3a8f0bce6776a6e675` (= its `.md5`); 848,059 `.gpx` files and `metadata.xml` | Downloaded 2026-11-01, `md5` |
 | OSM track points | 2,676,451,044 in the dump · `metadata.xml` lists 2,674,972,244: its count matches the file for 847,960 files; 99 early uploads (ids 105,565–123,773) hold 1,478,800 more, their points repeated (Python's XML parser on the 15 biggest: the same count as the file, only 25–50% of (lat, lon, time) distinct) | `tests/data/osm_count.py` (Python's `tarfile` and a regular expression, file by file) · `xml.etree` |
 | OSM import | `rows=2676451044 imported=2675901374 skipped_zero=546151 skipped_out_of_range=3519 skipped_malformed=0` | rows = `osm_count.py`; the other numbers from gpstiles only (checked on sample files) |
+| OpenSky aircraft positions, Monday 2022-06-27 | 24 hourly `states_2022-06-27-HH.csv.tar` from s3.opensky-network.org/data-samples (OpenSky's public samples, no account), 3,860,377,600 bytes; each = the bucket's listing in size and ETag (MD5, or for hours 14–17 the multipart ETag of 42 parts of 5 MiB) | `tools/fetch-opensky.py`, 2026-11-02 |
+| OpenSky rows and points | `rows=61296085 imported=56869562 skipped_zero=0 skipped_out_of_range=0 skipped_malformed=4426523`: the malformed rows are exactly the 4,426,523 with no position (empty `lat` and `lon`) | `awk` over every hour (`row_counts.awk`, LON=4 LAT=3 SKIP=1; `data/raw/opensky/awk-hours.txt`) · `awk -F,` count of empty positions |
 | NYC taxis 2009–2010 (TLC) | 24 Parquet files, 11 GB · 339,897,217 trips → 679,794,434 pickup and dropoff points: 668,475,278 on the map, 11,315,804 at (0,0), 3,242 off the map, 110 without a place | DuckDB, 2026-11-01 |
 | Porto trips (rows) and points | 1,710,670 trips (5,901 with no point), 83,409,386 points, all on the map, none at (0,0), no malformed row; longest line 84,640 bytes | Python's `csv` and `json` |
 
@@ -703,6 +709,7 @@ The goal (`PROJECT_IDEAS.md` §8.5): "GPX reader; multi-billion-point worldwide 
 | Compare two datasets | After the time decision |
 | Filter by other columns (fare, vehicle) | Later; needs a new index design |
 | Linux-only speedups (io_uring, O_DIRECT) | After macOS stages work |
+| Linux | `gpstiles` is portable C; the data scripts and checks use macOS's tools (bsdtar's `tar -xOf F '*.csv.gz'`, `ls -lnT`, `date -j`, `stat -f`): they would need porting first |
 | Logins, HTTPS, public hosting | Not planned (local tool) |
 
 ---

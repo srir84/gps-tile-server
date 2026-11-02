@@ -156,6 +156,20 @@ def test_row_counts_awk_gives_the_python_rules_counts():
             assert awk.returncode == 0 and awk.stdout == rules.counts_line(counts) + "\n", (name, skip, awk, counts)
 
 
+def test_row_counts_awk_reads_tab_separated_files_like_the_python_rules():
+    """catches: row_counts.awk's DELIM ignored or read as a comma (step 18: GBIF's files are tab-separated, so awk would split no row and call every one malformed, or split a comma inside a field)"""
+    with tempfile.TemporaryDirectory() as tmp:
+        rows = [b"gbifID\tlocality\tdecimalLatitude\tdecimalLongitude", b"1\tBerlin, Mitte\t52.52\t13.40",
+                b"2\t\t0\t0", b"3\tx\t\t", b"4\ty\t95\t1", b"5\ta,b,c\t-33.87\t151.21", b"6\tz\t1,5\t2"]
+        path = write(tmp, "gbif.tsv", b"\n".join(rows) + b"\n")
+        awk = subprocess.run(["awk", "-v", "LON=4", "-v", "LAT=3", "-v", "SKIP=1", "-v", "DELIM=\t",
+                              "-f", str(TESTS / "data" / "row_counts.awk"), str(path)],
+                             capture_output=True, text=True, env={**os.environ, "LC_ALL": "C"}, timeout=30)
+        counts, _ = rules.import_files([path], 4, 3, delim=b"\t", skip=1)
+        assert counts == dict(rows=6, imported=2, skipped_zero=1, skipped_out_of_range=1, skipped_malformed=2), counts
+        assert awk.returncode == 0 and awk.stdout == rules.counts_line(counts) + "\n", (awk, counts)
+
+
 def assert_polylines_match_oracle(tmp, files, col=9, skip=1, delim=b","):
     """Runs import --polyline and checks the counts line and every code against the Python rules."""
     out = pathlib.Path(tmp) / "out.pts"

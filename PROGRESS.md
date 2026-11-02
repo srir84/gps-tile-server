@@ -6,14 +6,16 @@ The handoff file. Read it first. Update it at the start and end of every step.
 
 | | |
 |---|---|
-| **Current step** | 16: GPX, OpenStreetMap's GPS traces (stage 5, DESIGN §12.7) |
-| **Status** | approved (all-stages go-ahead 2026-11-01) |
-| **Next action** | All five stages are built. For the developer: register GBIF and OpenSky (stage 5's DS-8, DS-9) with [email removed], then their import is a column-options or converter job; confirm or reverse "no time per point" (step 10) and "the count to match is Python's, not metadata.xml's" (step 16); choose a license. |
-| **Blocked on** | GBIF and OpenSky: the developer's accounts |
+| **Current step** | 18: GBIF 2024 (stage 5's DS-8, DESIGN §12.7) |
+| **Status** | not started: waiting for GBIF |
+| **Next action** | Step 18 when GBIF takes the download request (`tools/fetch-gbif.py data/raw/gbif 2024`: it answered HTTP 500 on 2026-11-02 from 13:56; a rerun first looks among the developer's downloads, so it never asks twice). Then import, check, both reviews, commit, deploy, push. Open for the developer: the license; step 16's speed check is close to its limit inside `make verify` (step-17.md, Not verified). |
+| **Blocked on** | GBIF's download service (HTTP 500 on GBIF's side) |
 
 Stage 2 approval: on 2026-11-01 the developer said "continue with stage implementation make sure everything works all tests pass", so stage 2 runs the same way as stage 1.
 
 Approval: on 2026-10-31 the developer set the goal "complete each step … do not stop until the full project is completed", with Codex (gpt-6-astra) and a Claude Opus skeptic reviewing every step. Each step is committed after both reviews and a green `make verify`. Deploy is local only (this Mac); nothing is published.
+
+Developer, 2026-11-02: registered GBIF and OpenSky with [email removed]; confirmed "no time per point" (step 10) and "the count to match is Python's" (step 16); license later; push to a private repo under srir84; GBIF: one recent year (2024); OpenSky: a personal project, so the public sample day (2022-06-27) instead of a Trino application.
 
 Status values: `not started` → `in progress` → `waiting for review` → `approved`
 
@@ -61,6 +63,7 @@ Status values: `not started` → `in progress` → `waiting for review` → `app
 | Step | Name | Status | Date | Commit | Review |
 |---|---|---|---|---|---|
 | 16 | GPX: OpenStreetMap's GPS traces + stage 5 report | approved | 2026-11-01 | `7d59783` | `docs/steps/step-16.md` |
+| 17 | OpenSky's aircraft positions (DS-9) | approved | 2026-11-02 | (this commit) | `docs/steps/step-17.md` |
 
 ## Done before step 0 (planning)
 
@@ -77,6 +80,9 @@ Status values: `not started` → `in progress` → `waiting for review` → `app
 
 | Date | What | Command | Result |
 |---|---|---|---|
+| 2026-11-02 | Step 17 after both review rounds (Codex: 3 medium + 1 low, then 2 medium; Claude skeptic: 3 medium + 6 low, then 2 medium + 1 low; all fixed): `make verify` | `make verify` (twice) | unit 39/0 · e2e 154/0 under check and sanitize · check-data: OpenSky hours 00 and 12 = awk, hour 00's codes and 2 airports = Python · step-17: the day = awk (DESIGN §13), tiles add up, the page, p99 14.84 ms · VERIFY PASSED on the second run; the first stopped at step-16's bench (107.95 ms at zoom 1, limit 100; 51 ms alone; 98.55 ms in the second run) |
+| 2026-11-02 | OpenSky's sample day fetched and counted | `tools/fetch-opensky.py data/raw/opensky 2022-06-27`; awk over every hour | 24 hours, 3,860,377,600 bytes, each = the listing's size and ETag (hours 14-17 multipart, 42 parts of 5 MiB) · rows=61296085 imported=56869562 skipped_malformed=4426523 (exactly the rows with no position) = gpstiles |
+| 2026-11-02 | Pushed steps 0–16 to the developer's private repo | `gh repo create srir84/gps-tile-server --private --source . --push` | https://github.com/srir84/gps-tile-server, private, branch main |
 | 2026-11-01 | Deploy of step 16 (`7d59783`); OpenStreetMap's GPS traces added to the service | `GPSTILES_PORT=8090 make deploy`, `cmp` with `make verify`'s build (the same), `datasets.conf`, `launchctl kickstart -k`, `tools/deploy.sh smoke` | smoke test green, no rollback · 9 datasets listed and drawn (pid 64955), 2,675,901,374 points among them |
 | 2026-11-01 | Step 16 after both review rounds (Codex: 2 medium + 1 low, then 2 medium + 1 low; Claude skeptic: 1 medium + 3 low, then 2 low; all fixed or filled in): `make verify` | `make verify` | unit 39/0 · e2e 140/0 under check and sanitize · check-data: 3 OSM files = the Python rules = Python's XML parser = metadata.xml · step-16: the whole dump re-imported → rows=2676451044 imported=2675901374 (= `osm_count.py`, DESIGN §13), 20 runs, tiles add up, the world page, p99 under 53 ms warm · VERIFY PASSED (about 1 h 30 min) |
 | 2026-11-01 | OpenStreetMap's GPS traces 2013 counted file by file, independent of gpstiles | `xz -dc … \| python3 -I tests/data/osm_count.py metadata.xml`; the 15 biggest mismatches through `xml.etree` | 2,676,451,044 track points in 848,059 files · `metadata.xml` 2,674,972,244: 99 early files hold 1,478,800 more (their points repeat; the XML parser = gpstiles on all 15) |

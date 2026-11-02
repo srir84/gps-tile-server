@@ -138,6 +138,8 @@ tests/
 │   ├── test_fetch_usgs.py    tools/fetch-usgs.py against a fake USGS: windows, counts, errors, resuming (step 11)
 │   ├── test_nyc_taxi.py      tools/nyc-taxi.py on tiny Parquet files (needs DuckDB in data/tools/venv, else SKIPPED) (step 14)
 │   ├── test_fetch_ais.py     tools/fetch-ais.sh against a fake server: whole days only, resuming (step 15)
+│   ├── test_fetch_opensky.py tools/fetch-opensky.py against a fake S3 bucket: whole hours only (size, MD5 or multipart ETag), pages, resuming (step 17)
+│   ├── test_fetch_gbif.py    tools/fetch-gbif.py against a fake GBIF: one request, waiting, whole zip only, the login file (step 18)
 │   └── test_<feature>.py   real HTTP against a running server                       (step 5a+)
 ├── validate/
 │   ├── lib.sh           shared helpers: scratch copy, the deliberately failing test    (step 0b)
@@ -149,6 +151,10 @@ tests/
 │   ├── check_porto.py   the same for the Porto taxis: polylines, counts = csv + json, a many-runs build (step 12)
 │   ├── check_nyc.py     the same for the NYC taxis 2009–2010: counts and places = DuckDB, 680 million points (step 14)
 │   ├── check_ais.py     NOAA AIS, light: 3 of 151 days = awk, a day's codes and 3 ports = Python (step 15)
+│   ├── check_osm.py     OpenStreetMap's GPS traces 2013, light: 3 GPX files = the Python rules = Python's XML parser = metadata.xml (step 16)
+│   ├── osm_count.py     the whole OSM dump's track points, file by file (run by hand: the answer source, step 16)
+│   ├── check_opensky.py OpenSky 2022-06-27, light: 2 of 24 hours = awk, an hour's codes and 2 airports = Python (step 17)
+│   ├── check_gbif.py    GBIF 2024: rows = GBIF's totalRecords, counts = awk, a sample's codes = Python (step 18)
 │   └── row_counts.awk   the row rules in awk, any columns: independent counts           (step 2; any columns from step 10)
 ├── oracle/
 │   └── *.py             independent answers: slow counts, plain sorts, PNG decoding
@@ -229,6 +235,8 @@ At least 2 deliberate breaks per step from step 1 on. Steps 0a and 0b use a setu
 | 14 | `tools/nyc-taxi.py` on tiny Parquet files made by DuckDB (2009's and 2010's column names; NULL, NaN, infinity, (0,0), the map's edges): known counts (SKIPPED without DuckDB) | Output to a file and a file with zone numbers refused · `make check-data`: counts = DuckDB's own SQL count and DESIGN §13; a build in several runs; Manhattan's tile and 3 places = DuckDB's counts inside their edges · `step-14.sh`: the API at JFK = DuckDB, the page, bench |
 | 15 | `tools/fetch-ais.sh` against a fake server: a whole day kept, a corrupt one (right size) refused with nothing left, a rerun resumes, a missing day, impossible or backwards dates refused, a damaged or empty kept day fetched again, a 2-CSV zip and a size other than stated refused | `make check-data`: 3 days = `awk` (one with skipped rows), a day's every code and 3 ports = Python, 3 days in 4 runs = in 1 · `step-15.sh`: 151 days = DESIGN §13 (`awk`), a build in several runs = with a 2 GiB buffer, tiles add up, the page, p99 at 1.2 billion points |
 | 16 | GPX tags: attributes in any order, `'` or `"`, spaces and newlines, self-closing `<trkpt .../>`, a tag split by the read buffer, many on a line, `<trkptx>` not a track point, a tag of 4,096 bytes kept and 4,097 refused, `>` inside a quoted value, a missing or bad `lat`/`lon` · a tag at each of 40 places before the 1 MiB edge · random GPX = the Python rules | A tag cut by the end of the stream, a stray or unclosed quote, a `<` or NUL inside a tag → one malformed row, the next track point still read · `--gpx` with column options, `--delim` or `--skip` refused |
+| 17 | `tools/fetch-opensky.py` against a fake S3 bucket: hours kept only when size and ETag match (MD5, or a multipart ETag from its 5 MiB parts), a wrong one refused with nothing left, a damaged kept hour fetched again, a listing in pages read to its end, a tar with two or no CSVs refused, bad days refused | A wrong MD5, a wrong multipart ETag, an ETag that is neither, a day with no files → refused, no `.part` left |
+| 18 | `tools/fetch-gbif.py` against a fake GBIF: the query (2024, with coordinates, simple CSV), one request (a rerun asks nothing), waiting until SUCCEEDED, the zip kept whole, the password never printed · `row_counts.awk` with `DELIM` | A login file others can read, a placeholder or wrong login, a FAILED download, a zip of another size or with two files → refused, nothing kept |
 
 ---
 

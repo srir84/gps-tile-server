@@ -265,3 +265,44 @@ osm_gpt() {
     OSM_COUNTS=$(sed -n 1p "$counts")
     OSM_BUILD=$(sed -n 2p "$counts")
 }
+
+# OpenSky's public state vectors of Monday 2022-06-27 (step 17): 24 hourly tars from tools/fetch-opensky.py, each holding
+# one gzipped CSV (LAT 3rd, LON 4th).
+OPENSKY_DATA="$ROOT/data/raw/opensky"
+
+# Imports each hour (tar -xOf | gunzip | import) into build/validate/opensky/, adds up the hours' counts and builds them
+# into build/validate/opensky-2022-06-27.gpt with the default --mem, kept while the tars, the options, the program and
+# this function's code are the same. Sets OPENSKY_GPT, OPENSKY_COUNTS and OPENSKY_BUILD. A few minutes.
+opensky_gpt() {
+    OPENSKY_GPT=$ROOT/build/validate/opensky-2022-06-27.gpt
+    local dir=$ROOT/build/validate/opensky counts=$ROOT/build/validate/opensky.counts key=$ROOT/build/validate/opensky.key
+    local options="--lat-col 3 --lon-col 4 --skip 1" now tar hour
+    now=$( { (cd "$OPENSKY_DATA" && ls -lnT states_2022-06-27-*.csv.tar); echo "$options"; declare -f opensky_gpt; } |
+        shasum -a 256) || fail "can't list the OpenSky tars"
+    if [ "$OPENSKY_GPT" -nt "$ROOT/build/gpstiles" ] && [ "$counts" -nt "$ROOT/build/gpstiles" ] &&
+        [ "$(cat "$key" 2> /dev/null)" = "$now" ]; then
+        OPENSKY_COUNTS=$(sed -n 1p "$counts")
+        OPENSKY_BUILD=$(sed -n 2p "$counts")
+        return 0
+    fi
+    rm -rf "$dir" "$OPENSKY_GPT" "$counts" "$key"
+    mkdir -p "$dir" || exit 1
+    for tar in "$OPENSKY_DATA"/states_2022-06-27-*.csv.tar; do
+        hour=$(basename "$tar" .csv.tar)
+        # shellcheck disable=SC2086 # $options is several words
+        tar -xOf "$tar" '*.csv.gz' | gunzip | "$ROOT/build/gpstiles" import $options -o "$dir/$hour.pts" /dev/stdin >> "$dir/hours.txt"
+        local status=("${PIPESTATUS[@]}")
+        [ "${status[0]}" = 0 ] && [ "${status[1]}" = 0 ] && [ "${status[2]}" = 0 ] ||
+            { rm -rf "$dir"; fail "OpenSky import of $hour failed (tar ${status[0]}, gunzip ${status[1]}, import ${status[2]})"; }
+    done
+    awk '{ for (i = 1; i <= NF; i++) { split($i, kv, "="); sum[kv[1]] += kv[2] } }
+         END { printf "rows=%d imported=%d skipped_zero=%d skipped_out_of_range=%d skipped_malformed=%d\n",
+               sum["rows"], sum["imported"], sum["skipped_zero"], sum["skipped_out_of_range"], sum["skipped_malformed"] }' \
+        "$dir/hours.txt" > "$counts"
+    "$ROOT/build/gpstiles" build --tmp "$ROOT/build/validate" -o "$OPENSKY_GPT" "$dir"/states_*.pts >> "$counts" ||
+        { rm -rf "$dir" "$counts"; fail "OpenSky build failed"; }
+    rm -rf "$dir"
+    echo "$now" > "$key"
+    OPENSKY_COUNTS=$(sed -n 1p "$counts")
+    OPENSKY_BUILD=$(sed -n 2p "$counts")
+}
