@@ -46,7 +46,7 @@ struct build *build_start(size_t chunk_codes, FILE *runs)
     struct build *b = calloc(1, sizeof *b);
     if (b == NULL)
         return NULL;
-    /* Pages are only used once filled, so a large --mem costs nothing on a small input. */
+    /* cmd_build asks for no more than the input when its size is known (a large --mem, a small file). */
     b->chunk = malloc(chunk_codes * sizeof *b->chunk);
     if (b->chunk == NULL) {
         free(b);

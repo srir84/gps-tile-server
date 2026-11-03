@@ -487,19 +487,24 @@ static int build_failed(enum build_status status, int error, const char *file, c
  * from the start: -o isn't a folder, every input exists and isn't a folder, a regular input's size is
  * a multiple of 8, and --mem is big enough for the inputs in at most 256 runs. Pipes are checked as
  * they are read. Returns 0, or the exit code after printing why. */
-static int check_build_files(char **files, int count, const char *out_path, uint64_t mem)
+/* Also sets *input_bytes to the inputs' total size, or UINT64_MAX if one is a pipe (its size unknown). */
+static int check_build_files(char **files, int count, const char *out_path, uint64_t mem, uint64_t *input_bytes)
 {
     struct stat st;
+    *input_bytes = UINT64_MAX;
     if (stat(out_path, &st) == 0 && S_ISDIR(st.st_mode))
         return file_error("build", out_path, "is a folder (-o wants the .gpt file to write)");
     uint64_t total = 0;
+    int sized = 1;
     for (int f = 0; f < count; f++) {
         if (stat(files[f], &st) != 0)
             return file_error("build", files[f], strerror(errno));
         if (S_ISDIR(st.st_mode))
             return file_error("build", files[f], "is a folder, not a .pts file");
-        if (!S_ISREG(st.st_mode))
+        if (!S_ISREG(st.st_mode)) {
+            sized = 0;
             continue; /* a pipe can be read only once: build_add checks it */
+        }
         if (st.st_size % 8 != 0)
             return file_error("build", files[f], "not a .pts file (its size is not a multiple of 8 bytes)");
         FILE *in = fopen(files[f], "rb");
@@ -519,6 +524,8 @@ static int check_build_files(char **files, int count, const char *out_path, uint
                         "use --mem %" PRIu64 "M or more\n", total, least);
         return 2;
     }
+    if (sized)
+        *input_bytes = total;
     return 0;
 }
 
@@ -561,7 +568,8 @@ static int cmd_build(int argc, char **argv)
         if (same_file(files[f], out_path))
             return build_error("-o", out_path, "it is also an input file");
     }
-    int status = check_build_files(files, file_count, out_path, mem);
+    uint64_t input_bytes;
+    int status = check_build_files(files, file_count, out_path, mem, &input_bytes);
     if (status != 0)
         return status;
 
@@ -584,7 +592,9 @@ static int cmd_build(int argc, char **argv)
     runs = open_run_file(tmp_folder);
     if (runs == NULL)
         goto done;
-    b = build_start((size_t)(mem / sizeof(uint64_t)), runs);
+    /* No bigger than the input: Linux refuses to reserve a --mem beyond the memory it has, even if unused. */
+    uint64_t sort_bytes = input_bytes < mem ? (input_bytes < 8 ? 8 : input_bytes) : mem;
+    b = build_start((size_t)(sort_bytes / sizeof(uint64_t)), runs);
     if (b == NULL) {
         status = build_failed(BUILD_NO_MEMORY, 0, NULL, out_path, tmp_folder);
         goto done;

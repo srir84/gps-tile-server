@@ -10,9 +10,13 @@ first=${2:?usage}
 last=${3:?usage}
 base=${AIS_URL:-https://coast.noaa.gov/htdata/CMSP/AISDataHandler}
 
+# Day $1 plus $2 days (0 or 1), with macOS's date or else GNU's (Linux).
+add_days() {
+    date -j -v+"$2"d -f %Y-%m-%d "$1" +%Y-%m-%d 2> /dev/null || date -u -d "$1 + $2 day" +%Y-%m-%d 2> /dev/null
+}
 # A real day only: macOS's date turns 2023-02-29 into 03-01, so a day must read back the same.
 real_day() {
-    [[ $1 =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] && [ "$(date -j -f %Y-%m-%d "$1" +%Y-%m-%d 2> /dev/null)" = "$1" ]
+    [[ $1 =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] && [ "$(add_days "$1" 0)" = "$1" ]
 }
 real_day "$first" && real_day "$last" && [[ ! "$first" > "$last" ]] ||
     { echo "fetch-ais: want two real days, YYYY-MM-DD, the first not after the last" >&2; exit 2; }
@@ -53,6 +57,6 @@ while :; do
         fi
     fi
     [ "$day" = "$last" ] && break
-    day=$(date -j -v+1d -f %Y-%m-%d "$day" +%Y-%m-%d) || { echo "fetch-ais: date failed after $day" >&2; exit 1; }
+    day=$(add_days "$day" 1) || { echo "fetch-ais: date failed after $day" >&2; exit 1; }
 done
 echo "fetch-ais: $(ls "$out"/AIS_*.zip | wc -l | tr -d ' ') days in $out"
