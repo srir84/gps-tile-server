@@ -1,9 +1,11 @@
 # gpstiles
 
+[![Linux tests](https://github.com/srir84/gps-tile-server/actions/workflows/linux.yml/badge.svg)](https://github.com/srir84/gps-tile-server/actions/workflows/linux.yml)
+
 **Billions of GPS points → a zoomable heat map in your browser. One small C program, one file per dataset, on a laptop.**
 
 ![2.7 billion GPS points from OpenStreetMap's public traces, the whole world at zoom 2: Europe brightest, every continent's roads, flight paths across the oceans](docs/images/readme-world-gps.jpg)
-<sub>OpenStreetMap's public GPS traces, 2013: **2,675,901,374 points** in one 21 GB file. Worst-case tile time (p99) at any zoom: 52 ms.</sub>
+<sub>OpenStreetMap's public GPS traces, 2013: **2,675,901,374 points** in one 21 GB file. Slowest zoom's p99: 52 ms (warm cache, drawing only, no HTTP).</sub>
 
 ## In 30 seconds
 
@@ -244,11 +246,15 @@ docs/       DESIGN.md, TESTING.md, steps/ (one report per step)
 AGENTS.md   instructions for the coding agents (CLAUDE.md and .claude/ point Claude at it); not needed to use gpstiles
 ```
 
-## Limits
+## Known limits
 
-- **macOS.** The C is portable; the build, deploy and data scripts use macOS tools.
+- **Scripts need macOS.** The program builds and passes `make check` and `make sanitize` on Linux too (gcc and clang, [CI](.github/workflows/linux.yml)); the deploy, data and validation scripts use macOS tools.
 - **No time dimension.** Points are places only (adding time would change the file format).
 - **Local by default.** It listens on 127.0.0.1, read-only, no logins: not built for the open internet.
+- **IPv4 only, no keep-alive.** One IPv4 address; every answer closes its connection (`Connection: close`).
+- **The `.gpt` file is trusted.** Opening one checks its header, version, size and stats, not that the points are sorted: a foreign or hand-edited file can give wrong counts (never a read outside the file).
+- **Don't overwrite a served `.gpt` in place.** The server memory-maps it, and a file shrunk under it can crash the server (SIGBUS on Linux; macOS kept serving in a test). Write the new file beside it, `mv` it over, restart.
+- **GPX comments aren't skipped.** A `<trkpt>` inside an XML comment or CDATA counts as a point (GPS loggers and OpenStreetMap write neither).
 - **Base map needs internet.** Offline, the heat map shows on a dark background.
 
 ## Licenses

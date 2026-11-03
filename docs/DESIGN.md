@@ -16,7 +16,7 @@
 | **What** | Turns millions to billions of GPS points into an interactive web map, served from **one file per dataset + one small C program**. One server can serve several datasets |
 | **Program** | `gpstiles` (commands: `import`, `build`, `serve`) |
 | **Language** | C11 + zlib. Map page: HTML/JS + Leaflet 1.9.4, compiled into the program |
-| **Runs on** | macOS (the C is portable; the build, deploy and data scripts use macOS tools) |
+| **Runs on** | macOS · Linux for the program and `make check` / `make sanitize` (gcc and clang on every push: `.github/workflows/linux.yml`); the deploy, data and validation scripts use macOS tools |
 | **Datasets tested** | 10, from 4.5 million to 2.7 billion points (README) |
 | **Status** | Stages 1–5 built (steps 0a–18). Each step's report: `docs/steps/` |
 
@@ -710,7 +710,7 @@ The goal (the project's original plan): "GPX reader; multi-billion-point worldwi
 | Compare two datasets | Not built |
 | Filter by other columns (fare, vehicle) | Later; needs a new index design |
 | Linux-only speedups (io_uring, O_DIRECT) | Not built (see Linux) |
-| Linux | `gpstiles` is portable C; the data scripts and checks use macOS's tools (bsdtar's `tar -xOf F '*.csv.gz'`, `ls -lnT`, `date -j`, `stat -f`): they would need porting first |
+| Linux | The program, `make check` and `make sanitize` pass on Ubuntu 24.04 with gcc and clang on every push (`.github/workflows/linux.yml`; it found two macOS-only habits, now fixed: a `--mem` larger than the machine's memory, and `fetch-ais.sh`'s `date -j` and `stat -f`). The service (launchd), the release package and the data checks (bsdtar's `tar -xOf F '*.csv.gz'`, `ls -lnT`) are still macOS only |
 | Logins, HTTPS, public hosting | Not planned (local tool) |
 
 ---

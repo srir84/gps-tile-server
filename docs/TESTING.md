@@ -46,6 +46,7 @@ flowchart TB
 | 6 Commit | Pre-commit hook | `make check` + `make sanitize` green | Commit refused | §12.5 |
 | 7 Deploy | `make deploy` (from step 5b) | Smoke test green | Automatic rollback | §12.6 |
 | Release | `make release` (from step 9) | Smoke test of the packaged build green | No tag, no package | §12.7 |
+| Linux | GitHub Actions (`.github/workflows/linux.yml`), every push | `make check` + `make sanitize` green with gcc and clang on Ubuntu | Red badge in the README | — |
 
 ---
 
@@ -350,7 +351,7 @@ The "break on purpose" proof is not part of `make verify`. The agent does it by 
 | `make release VERSION=x.y.z` | Optimized build of the commit itself (`git archive`), for macOS 13 or later → `dist/gpstiles-x.y.z-macos-arm64.tar.gz` (binary, README, Leaflet's license, and the MIT `LICENSE`) + `.sha256` file → local git tag `vx.y.z` |
 | Smoke test | Unpack into a temp folder. The unpacked `gpstiles` imports a 10-row CSV the test writes there, builds it, serves it on `--port 0`, and the smoke checks run against it |
 | Publishing | Uploading anywhere (e.g. GitHub Releases) is outward-facing: only after the developer says so |
-| Later | Linux build (stage 5+) |
+| Linux | Tested on every push (CI), not packaged: the release is macOS only |
 
 ### 12.8 Limits that stop runaway loops
 
