@@ -47,7 +47,7 @@ while :; do
         wait "$fetcher"
         got=$?
         fetcher=
-        if [ "$got" = 0 ] && [ "$(stat -f %z "$part")" = "$want" ] && unzip -tq "$part" > /dev/null && one_csv "$part"; then
+        if [ "$got" = 0 ] && [ "$(wc -c < "$part" | tr -d " ")" = "$want" ] && unzip -tq "$part" > /dev/null && one_csv "$part"; then
             mv "$part" "$out/$name" || { echo "fetch-ais: can't keep $name" >&2; exit 1; } # the trap removes .part
             part=
             echo "$name $want"
