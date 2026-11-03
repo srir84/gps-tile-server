@@ -121,11 +121,11 @@ B9–B11 changed the real data files' copies in place; both were restored and co
 | Do this | Expected | Actual (agent's run) |
 |---|---|---|
 | `tests/validate/step-18.sh` | the `ok` lines in Tests | as in Tests |
-| http://127.0.0.1:8090/#gbif-2024 | species sightings worldwide | after the deploy |
+| http://127.0.0.1:8090/#gbif-2024 | species sightings worldwide | 287,450,825 points; bright over the US and Europe, survey lines at sea |
 
 ## Deploy (after approval)
 
-After this commit: `GPSTILES_PORT=8090 make deploy`, `gbif-2024.gpt` (2.3 GB) in `data/build/`, added to `datasets.conf`.
+Done after commit 30322b7: `gbif-2024.gpt` (2.3 GB) copied to `data/build/` (`cmp` = the validated build), added to `datasets.conf`, `GPSTILES_PORT=8090 make deploy`: "smoke test green: the map page, 11 dataset(s) listed and drawn, bad URL → 404".
 
 ## Who did what
 
