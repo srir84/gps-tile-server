@@ -495,7 +495,8 @@ static int safe_host(const char *value, size_t length)
 }
 
 /* The request head after the checks HTTP/1.1 asks for (RFC 9112): "METHOD SP TARGET SP HTTP/1.0|1.1" and
- * header lines "Name: value", no space before the colon, exactly one Host for HTTP/1.1. */
+ * header lines "Name: value" (the method and names tokens, no control characters, lines ended by CR LF), exactly
+ * one Host for HTTP/1.1. */
 struct request {
     char *method, *target;
     int http11; /* HTTP/1.1, else 1.0 */
@@ -503,13 +504,37 @@ struct request {
     size_t host_length;
 };
 
+/* 1 if text[0..length) is a token (RFC 9110 §5.6.2), what a method or a header name must be. */
+static int is_token(const char *text, size_t length)
+{
+    for (size_t i = 0; i < length; i++) {
+        char c = text[i];
+        if (!((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') ||
+              (c != '\0' && strchr("!#$%&'*+-.^_`|~", c) != NULL)))
+            return 0;
+    }
+    return length > 0;
+}
+
+/* 1 if text[0..length) has no control character but tab (RFC 9110 §5.5; bytes from 0x80 are allowed). */
+static int no_controls(const char *text, size_t length)
+{
+    for (size_t i = 0; i < length; i++) {
+        unsigned char c = (unsigned char)text[i];
+        if ((c < 0x20 && c != '\t') || c == 0x7f)
+            return 0;
+    }
+    return 1;
+}
+
 /* Parses the head in place (it ends with an empty line). Returns NULL, or why it is a bad request. */
 static const char *parse_head(char *head, struct request *r)
 {
     char *line_end = strstr(head, "\r\n");
     char *space = strchr(head, ' ');
     char *space2 = space != NULL && space < line_end ? strchr(space + 1, ' ') : NULL;
-    if (space == NULL || space2 == NULL || space2 > line_end || space == head || space[1] != '/' ||
+    if (space == NULL || space2 == NULL || space2 > line_end || !is_token(head, (size_t)(space - head)) ||
+        space[1] != '/' || !no_controls(space + 1, (size_t)(space2 - space - 1)) ||
         line_end - (space2 + 1) != 8 || (strncmp(space2 + 1, "HTTP/1.0", 8) != 0 && strncmp(space2 + 1, "HTTP/1.1", 8) != 0))
         return "bad request line";
     int http11 = r->http11 = space2[8] == '1';
@@ -521,7 +546,10 @@ static const char *parse_head(char *head, struct request *r)
     int hosts = 0;
     for (char *line = line_end + 2; strncmp(line, "\r\n", 2) != 0; line = strstr(line, "\r\n") + 2) {
         size_t length = strcspn(line, "\r\n"), name = strcspn(line, ":\r\n");
-        if (name == 0 || name >= length || strcspn(line, " \t") < name)
+        /* A name that is a token, a value without control characters, and the line ended by CR LF (a bare
+         * CR or LF would end it for some other HTTP reader, which could then see another header). */
+        if (name >= length || !is_token(line, name) || !no_controls(line + name + 1, length - name - 1) ||
+            line[length] != '\r' || line[length + 1] != '\n')
             return "bad header line";
         if (name == 4 && strncasecmp(line, "Host", 4) == 0) {
             const char *value = line + 5 + strspn(line + 5, " \t");

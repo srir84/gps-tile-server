@@ -168,6 +168,14 @@ def bad_requests():
         (get(b"/api/datasets", b""), 400),  # HTTP/1.1 without Host
         (get(b"/api/datasets", b"Host: 127.0.0.1\r\nHost: evil.example\r\n"), 400),
         (get(b"/api/datasets", b"Host: 127.0.0.1\r\nNo-colon-here\r\n"), 400),
+        (get(b"/api/datasets", b"Host: 127.0.0.1\r\nX(y): 1\r\n"), 400),  # a header name that isn't a token
+        (get(b"/api/datasets", b"Host: 127.0.0.1\r\nX@y: 1\r\n"), 400),
+        (get(b"/api/datasets", b"Host: 127.0.0.1\r\n\xc3\xa9: 1\r\n"), 400),
+        (get(b"/api/datasets", b"Host: 127.0.0.1\r\nX-A: a\x01b\r\n"), 400),  # a control character in a value
+        (get(b"/api/datasets", b"Host: 127.0.0.1\r\nX-A: 1\nX-B: 2\r\n"), 400),  # a bare LF
+        (get(b"/api/datasets", b"Host: 127.0.0.1\r\nX-A: 1\rX-B: 2\r\n"), 400),  # a bare CR
+        (b"G(T /api/datasets HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n", 400),  # a method that isn't a token
+        (get(b"/api/data\x01sets"), 400),  # a control character in the target
         (get(long_target), 414),
         (get(b"/api/datasets", b"Host: 127.0.0.1\r\nX-Pad: " + b"b" * 10_000 + b"\r\n"), 431),
         (b"GET /api/datasets\r\nHost: 127.0.0.1\r\n\r\n", 400),
@@ -182,7 +190,7 @@ def bad_requests():
 
 
 def test_bad_requests_get_an_error_and_the_next_request_still_works():
-    """catches: a crash, hang or wrong answer on a malformed URL or request line, a bad header, a huge request line or headers, a foreign Host, or a method other than GET and HEAD"""
+    """catches: a crash, hang or wrong answer on a malformed URL or request line, a bad header (a name that isn't a token, a control character, a bare CR or LF), a huge request line or headers, a foreign Host, or a method other than GET and HEAD"""
     with tempfile.TemporaryDirectory() as tmp:
         sets = datasets_folder(pathlib.Path(tmp))
         with Server(*(path for path, _ in sets.values())) as server:
@@ -246,6 +254,10 @@ def test_other_ways_to_ask_get_the_same_answer():
                 status, _, body = server.get("/api/datasets", headers={"Host": host})
                 assert status == 200 and body == want, (host, status)
             assert server.get("/api/datasets?x=1")[2] == want
+            # Unusual but valid header names (every token character) and a value with a tab and a non-ASCII byte.
+            answer = server.raw(b"GET /api/datasets HTTP/1.1\r\nHost: 127.0.0.1\r\n"
+                                b"X!#$%&'*+-.^_`|~09az: a\tb \xff\r\n\r\n")
+            assert answer.startswith(b"HTTP/1.1 200 ") and answer.endswith(want), answer[:200]
             status, headers, png = server.get("/tiles/big/0/0/0.png?v=1")
             assert status == 200 and png.startswith(b"\x89PNG")
             status, head_headers, body = server.get("/tiles/big/0/0/0.png", method="HEAD")

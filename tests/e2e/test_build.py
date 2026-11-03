@@ -146,7 +146,7 @@ def test_file_errors_exit_1_and_leave_no_files():
 def test_a_run_file_that_cannot_be_hidden_is_reported_not_filled():
     """catches: unlink of the run file failing silently, so the sorted runs are written to a file that is then left behind (Codex step 3a round 1)"""
     if sys.platform != "darwin":
-        return  # the ACL below is macOS's way to allow creating but not deleting files
+        return "SKIPPED: needs macOS (the ACL below is its way to allow creating but not deleting files)"
     with tempfile.TemporaryDirectory() as tmp:
         tmp = pathlib.Path(tmp)
         good, runs = tmp / "good.pts", tmp / "runs"
@@ -169,7 +169,7 @@ def test_a_run_file_that_cannot_be_hidden_is_reported_not_filled():
 def test_a_temp_output_that_cannot_be_removed_is_reported():
     """catches: removing the temp .gpt (or .pts) after a failure failing silently, so it stays behind unreported (Codex step 3a round 2)"""
     if sys.platform != "darwin":
-        return  # the ACL below is macOS's way to allow creating but not deleting files
+        return "SKIPPED: needs macOS (the ACL below is its way to allow creating but not deleting files)"
     with tempfile.TemporaryDirectory() as tmp:
         tmp = pathlib.Path(tmp)
         good, out = tmp / "good.pts", tmp / "out"
@@ -293,7 +293,7 @@ def test_a_signal_ignored_at_start_stays_ignored():
 def test_the_run_file_goes_next_to_the_output_by_default():
     """catches: runs written to the system temp folder (tmpfile, $TMPDIR) instead of next to the output, which can fill the system disk (DESIGN §5.3)"""
     if sys.platform != "darwin":
-        return  # the ACL below is macOS's way to allow creating but not deleting files
+        return "SKIPPED: needs macOS (the ACL below is its way to allow creating but not deleting files)"
     with tempfile.TemporaryDirectory() as tmp:
         tmp = pathlib.Path(tmp)
         good, out = tmp / "good.pts", tmp / "out"

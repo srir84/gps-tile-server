@@ -1,0 +1,32 @@
+# linux.yml: builds gpstiles and runs `make check` and `make sanitize` on Linux with gcc and clang
+# (the developer's own runs are on macOS). No data: the real-data checks need data/, which isn't in the repo.
+name: Linux
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        cc: [gcc, clang]
+    env:
+      CC: ${{ matrix.cc }}
+      GPSTILES_CHROME: /usr/bin/google-chrome
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install zlib
+        run: sudo apt-get update && sudo apt-get install -y zlib1g-dev
+      - name: Versions
+        run: $CC --version | head -1 && python3 --version && google-chrome --version
+      - name: make check
+        run: make check CC=$CC
+      - name: make sanitize
+        run: make sanitize CC=$CC

@@ -12,7 +12,8 @@ import subprocess
 import tempfile
 import time
 
-CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+# GPSTILES_CHROME: another Chrome (Linux: /usr/bin/google-chrome).
+CHROME = os.environ.get("GPSTILES_CHROME", "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome")
 
 # Runs in the page before its own scripts: keeps every blocked load or script (CSP) for the tests to read,
 # and lets the browser's list of requests (Resource Timing) grow past its default 250.
