@@ -58,7 +58,7 @@ flowchart TB
 | 3. Bad input | Broken rows, broken files, broken requests → clean error, never a crash | `tests/unit/` + `tests/e2e/` | `make check` | < 5 s |
 | 4. End-to-end | Start the real server on a small test file, send real HTTP requests | `tests/e2e/` (Python) | `make check` | < 5 s |
 | 5. Memory safety | Levels 1–4 again with AddressSanitizer + UndefinedBehaviorSanitizer | same | `make sanitize` | < 30 s |
-| 6. Real data | Each downloaded dataset (8: T-Drive … OpenSky) against `awk`, Python or DuckDB | `tests/data/` (Python + awk) | `make check-data` | minutes |
+| 6. Real data | Each downloaded dataset (9: T-Drive … GBIF) against `awk`, Python or DuckDB | `tests/data/` (Python + awk) | `make check-data` | minutes |
 
 Levels 1–5 use only the small files in `tests/fixtures/`, so they never need `data/`. Level 6 needs `data/`. If it is missing, `make check-data` prints `SKIPPED: <reason>` and exits 0. A skip is not a pass: the step file lists it under "Not verified".
 
@@ -77,7 +77,7 @@ What `make check` prints (short, so it can be pasted into a step file):
 
 ```text
 unit        39 passed   0 failed
-e2e        154 passed   0 failed
+e2e        155 passed   0 failed
 ALL PASSED (build)
 ```
 
@@ -152,7 +152,7 @@ tests/
 │   ├── check_osm.py     OpenStreetMap's GPS traces 2013, light: 3 GPX files = the Python rules = Python's XML parser = metadata.xml (step 16)
 │   ├── osm_count.py     the whole OSM dump's track points, file by file (run by hand: the answer source, step 16)
 │   ├── check_opensky.py OpenSky 2022-06-27, light: 2 of 24 hours = awk, an hour's codes and 2 airports = Python (step 17)
-│   ├── (check_gbif.py)  to come in step 18 (GBIF), which waits for GBIF's download service
+│   ├── check_gbif.py    GBIF 2024, light: the zip = download.json, the header's columns, 500,000 rows = awk = the Python rules (step 18)
 │   └── row_counts.awk   the row rules in awk, any columns: independent counts           (step 2; any columns from step 10)
 ├── oracle/
 │   └── *.py             independent answers: slow counts, plain sorts, PNG decoding

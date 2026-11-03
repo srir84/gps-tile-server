@@ -9,7 +9,7 @@
 
 - **What:** give it places (longitude, latitude); get an interactive heat map, point counts for any box, and CSV export.
 - **What it's not:** a database, a GIS or a cloud service. One 300 KB program: C11 + zlib.
-- **Scale:** 9 real datasets, 4.5 million to **2.7 billion** points. 2.7 billion points sort in 4 min 43 s using 1 GiB of memory.
+- **Scale:** 10 real datasets, 4.5 million to **2.7 billion** points. 2.7 billion points sort in 4 min 43 s using 1 GiB of memory.
 - **The trick:** each point becomes a 64-bit [Z-order code](#the-key-idea-z-order), sorted once. Every map tile, at every zoom, is then one contiguous slice of the file, found by two binary searches. No tiles are pre-rendered.
 - **Start reading the code at** [`count_cell()` in `src/render.c`](src/render.c): about 30 lines that turned an 83-million-point world tile from 164 ms into 0.6 ms.
 - **Data included?** No. You [download datasets](#datasets-none-included) yourself.
@@ -70,6 +70,7 @@ Apple-silicon MacBook (16 cores, 128 GB), file in the disk cache. Worst p99: the
 |---|---:|---:|---|---:|
 | Porto taxis | 83 M | 0.7 GB | 1 run | 19 ms |
 | OpenSky, one day | 57 M | 0.5 GB | 1 run, 38 s with import | 15 ms |
+| GBIF sightings, 2024 | 287 M | 2.3 GB | 3 runs, 14 min with import (`unzip`) | 22 ms |
 | NYC taxis 2009–2010 | 668 M | 5.3 GB | 5 runs, 97 s | 50 ms |
 | NOAA AIS ships | 1.2 B | 9.7 GB | 10 runs, 149 s | 20 ms |
 | OpenStreetMap traces | 2.7 B | 21.4 GB | 20 runs, 283 s | 52 ms |
@@ -138,9 +139,9 @@ build/gpstiles serve mine.gpt
 | [NYC yellow taxis](https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page), 2009–2010 | 668 M | 11 GB | manual: TLC Parquet, via `tools/nyc-taxi.py` (DuckDB) | no |
 | [NOAA AIS ships](https://hub.marinecadastre.gov/pages/vesseltraffic), Jan–May 2023 | 1.2 B | 47.6 GB | script: `tools/fetch-ais.sh` (each day verified) | no |
 | [OpenStreetMap GPS traces](https://planet.openstreetmap.org/gps/), 2013 | 2.7 B | 22 GB | manual: one `tar.xz` (check its `.md5`) | no |
-| [GBIF](https://www.gbif.org/) species sightings, 2024 | – | – | script: `tools/fetch-gbif.py` (GBIF prepares it: up to hours) | yes, free |
+| [GBIF](https://www.gbif.org/) species sightings, 2024 | 287 M | 35 GB | script: `tools/fetch-gbif.py` (GBIF prepares it: about 25 min) | yes, free |
 
-Terms differ: OpenSky's samples are for non-profit research, education and testing; cite a GBIF download by its DOI (the script prints it); OpenStreetMap data is © OpenStreetMap contributors.
+Terms differ: OpenSky's samples are for non-profit research, education and testing; a GBIF download carries the most restrictive license of its records (2024's: CC BY-NC 4.0, non-commercial) and is cited by its DOI (the script prints it); OpenStreetMap data is © OpenStreetMap contributors.
 
 <details>
 <summary><b>The import command for each dataset</b></summary>
@@ -226,9 +227,9 @@ It listens on 127.0.0.1:8080. Another port: `make undeploy`, then `GPSTILES_PORT
 
 ## How it was built
 
-Written with AI coding agents (Claude as builder, Codex as reviewer) in 21 small, reviewed steps, from 10 million Beijing taxi points to 2.7 billion worldwide. Every step was gated by tests:
+Written with AI coding agents (Claude as builder, Codex as reviewer) in 22 small, reviewed steps, from 10 million Beijing taxi points to 2.7 billion worldwide. Every step was gated by tests:
 
-- **Independent answers:** counts are checked against a separate tool, never against gpstiles itself: `awk` over the raw files, DuckDB, Python's XML parser, or the publisher's own count (USGS, OpenStreetMap).
+- **Independent answers:** counts are checked against a separate tool, never against gpstiles itself: `awk` over the raw files, DuckDB, Python's XML parser, or the publisher's own count (USGS, OpenStreetMap, GBIF).
 - **Tests that are proven:** each step plants bugs on purpose in a throwaway copy (at least two per step) and shows a test catching each one.
 - **Reviews:** every step reviewed by Codex; from step 3a also by a second, independent Claude agent.
 

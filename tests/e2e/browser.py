@@ -52,8 +52,14 @@ class Browser:
             args.insert(1, "--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE 127.0.0.1")
         # close_fds=False keeps the two pipes that pipes() puts at 3 and 4; Python opens every other file
         # non-inheritable, so nothing else reaches Chrome.
-        self.process = subprocess.Popen(args, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-                                        stderr=subprocess.DEVNULL, close_fds=False, preexec_fn=pipes)
+        try:
+            self.process = subprocess.Popen(args, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                                            stderr=subprocess.DEVNULL, close_fds=False, preexec_fn=pipes)
+        except BaseException:  # Chrome didn't start: nothing else will clean these up (Claude skeptic, step 18)
+            for fd in (to_chrome, from_chrome, self.reader, self.writer):
+                os.close(fd)
+            shutil.rmtree(self.profile, ignore_errors=True)
+            raise
         os.close(to_chrome)
         os.close(from_chrome)
         try:

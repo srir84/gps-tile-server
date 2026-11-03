@@ -306,3 +306,41 @@ opensky_gpt() {
     OPENSKY_COUNTS=$(sed -n 1p "$counts")
     OPENSKY_BUILD=$(sed -n 2p "$counts")
 }
+
+# GBIF's occurrences of 2024 with coordinates (step 18): one zip from tools/fetch-gbif.py holding one tab-separated CSV
+# (decimalLatitude 22nd, decimalLongitude 23rd, a header line).
+GBIF_DATA="$ROOT/data/raw/gbif"
+
+# Streams the zip (unzip -p | import) and builds build/validate/gbif-2024.gpt with the default --mem, kept while the
+# zip, the options, the program and this function's code are the same. Sets GBIF_GPT, GBIF_COUNTS and GBIF_BUILD.
+# About 15 minutes (161 GB to decompress).
+gbif_gpt() {
+    GBIF_GPT=$ROOT/build/validate/gbif-2024.gpt
+    local pts=$ROOT/build/validate/gbif-2024.pts counts=$ROOT/build/validate/gbif-2024.counts key=$ROOT/build/validate/gbif-2024.key
+    local options="--delim tab --lat-col 22 --lon-col 23 --skip 1" now zip
+    local zips=("$GBIF_DATA"/*.zip)
+    [ "${#zips[@]}" = 1 ] && [ -f "${zips[0]}" ] || fail "want exactly one GBIF zip in $GBIF_DATA"
+    zip=${zips[0]}
+    now=$( { ls -lnT "$zip"; echo "$options"; declare -f gbif_gpt; } | shasum -a 256) || fail "can't list the GBIF zip"
+    if [ "$GBIF_GPT" -nt "$ROOT/build/gpstiles" ] && [ "$counts" -nt "$ROOT/build/gpstiles" ] &&
+        [ "$(cat "$key" 2> /dev/null)" = "$now" ]; then
+        GBIF_COUNTS=$(sed -n 1p "$counts")
+        GBIF_BUILD=$(sed -n 2p "$counts")
+        return 0
+    fi
+    mkdir -p "$ROOT/build/validate" || exit 1
+    rm -f "$GBIF_GPT" "$pts" "$counts" "$key"
+    # shellcheck disable=SC2086 # $options is several words
+    unzip -p "$zip" | "$ROOT/build/gpstiles" import $options -o "$pts" /dev/stdin > "$counts"
+    local status=("${PIPESTATUS[@]}")
+    if [ "${status[0]}" != 0 ] || [ "${status[1]}" != 0 ]; then
+        rm -f "$pts" "$counts" # a zip cut short ends the rows early: counts that look whole
+        fail "GBIF import failed (unzip ${status[0]}, import ${status[1]})"
+    fi
+    "$ROOT/build/gpstiles" build --tmp "$ROOT/build/validate" -o "$GBIF_GPT" "$pts" >> "$counts" ||
+        { rm -f "$pts" "$counts"; fail "GBIF build failed"; }
+    rm -f "$pts"
+    echo "$now" > "$key"
+    GBIF_COUNTS=$(sed -n 1p "$counts")
+    GBIF_BUILD=$(sed -n 2p "$counts")
+}

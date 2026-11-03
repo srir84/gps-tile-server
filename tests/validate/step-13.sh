@@ -21,11 +21,13 @@ if [ -z "$gpts" ]; then
     exit 0
 fi
 
-# The point-by-point drawing: this tree with render.c's render_count as it was in step 12 (commit 1e22d25).
+# The point-by-point drawing: this tree with render.c's render_count as it was in step 12, found by its commit's
+# message (not by hash: the history was rewritten twice, and hashes changed).
 old=$(mktemp -d "${TMPDIR:-/tmp}/gpstiles-step13.XXXXXX") || exit 1
 trap 'rm -rf "$old"' EXIT
 git archive HEAD | tar -x -C "$old" || fail "can't export HEAD"
-git show 1e22d25:src/render.c > "$old/src/render.c" || fail "can't read step 12's render.c"
+step12=$(git log --format=%H -n 1 --grep='^step 12: ' --extended-regexp) && [ -n "$step12" ] || fail "no step 12 commit"
+git show "$step12:src/render.c" > "$old/src/render.c" || fail "can't read step 12's render.c"
 env -u MAKEFLAGS -u MFLAGS make -C "$old" -s all B="$old/build" > /dev/null 2>&1 || fail "the step-12 drawing doesn't build"
 
 python3 -I -B - "$old/build/gpstiles" "$ROOT/build/gpstiles" $gpts <<'PY' || fail "a tile differs (see above)"

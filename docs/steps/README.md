@@ -1,6 +1,6 @@
 # Step reports
 
-gpstiles was built in 21 small steps over five stages. Each report has the real command output, the bugs planted to prove the tests, and what the reviewers (Codex; from step 3a also a separate Claude agent) found.
+gpstiles was built in 22 small steps over five stages. Each report has the real command output, the bugs planted to prove the tests, and what the reviewers (Codex; from step 3a also a separate Claude agent) found.
 
 | Stage | Step | Built |
 |---|---|---|
@@ -24,7 +24,8 @@ gpstiles was built in 21 small steps over five stages. Each report has the real 
 | | [14](step-14.md) | NYC taxis 2009–2010, 668,475,278 points, against DuckDB |
 | | [15](step-15.md) | NOAA AIS ships, **1,216,355,854 points**, stage 4 report |
 | 5 · GPX, world datasets | [16](step-16.md) | GPX reader; OpenStreetMap GPS traces, **2,675,901,374 points**, stage 5 report |
-| | [17](step-17.md) | OpenSky aircraft, 56,869,562 points; step 18 (GBIF) waits for GBIF's service |
+| | [17](step-17.md) | OpenSky aircraft, 56,869,562 points |
+| | [18](step-18.md) | GBIF species sightings of 2024, 287,450,825 points, against GBIF's own record count |
 
 ## Where the evidence is
 

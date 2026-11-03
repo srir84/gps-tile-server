@@ -17,8 +17,8 @@
 | **Program** | `gpstiles` (commands: `import`, `build`, `serve`) |
 | **Language** | C11 + zlib. Map page: HTML/JS + Leaflet 1.9.4, compiled into the program |
 | **Runs on** | macOS (the C is portable; the build, deploy and data scripts use macOS tools) |
-| **Datasets tested** | 9, from 4.5 million to 2.7 billion points (README) |
-| **Status** | Stages 1–5 built (steps 0a–17). Step 18 (GBIF) waits for GBIF's download service. Each step's report: `docs/steps/` |
+| **Datasets tested** | 10, from 4.5 million to 2.7 billion points (README) |
+| **Status** | Stages 1–5 built (steps 0a–18). Each step's report: `docs/steps/` |
 
 ---
 
@@ -663,7 +663,7 @@ The goal (the project's original plan): "GPX reader; multi-billion-point worldwi
 |---|---|---|---|
 | 16 | `import --gpx` (DESIGN §8), `tests/data/check_osm.py`, the stage 5 report | `xz -dc gpx-planet-2013-04-09.tar.xz \| tar -xOf - \| gpstiles import --gpx -o osm.pts /dev/stdin` · `build` · `bench` · the page | rows = `tests/data/osm_count.py` (= `metadata.xml`'s sum + 99 files it undercounts, §13) · samples = Python's XML parser · tiles in milliseconds |
 | 17 | `tools/fetch-opensky.py`, `tests/data/check_opensky.py` | per hour `tar -xOf … \| gunzip \| gpstiles import --lat-col 3 --lon-col 4 --skip 1` · `build` · `bench` · the page | counts = `awk` over the whole day · airports' tiles = Python |
-| 18 | `tools/fetch-gbif.py`, `tests/data/check_gbif.py` (to come: GBIF's service is down), the stage 5 report | `unzip -p … \| gpstiles import --delim tab` (columns from the header) · `build` · `bench` · the page | rows = GBIF's `totalRecords` · counts = `awk` |
+| 18 | `tools/fetch-gbif.py`, `tests/data/check_gbif.py`, the stage 5 report | `unzip -p … \| gpstiles import --delim tab` (columns from the header) · `build` · `bench` · the page | rows = GBIF's `totalRecords` · counts = `awk` |
 
 ---
 
@@ -695,6 +695,8 @@ The goal (the project's original plan): "GPX reader; multi-billion-point worldwi
 | OSM import | `rows=2676451044 imported=2675901374 skipped_zero=546151 skipped_out_of_range=3519 skipped_malformed=0` | rows = `osm_count.py`; the other numbers from gpstiles only (checked on sample files) |
 | OpenSky aircraft positions, Monday 2022-06-27 | 24 hourly `states_2022-06-27-HH.csv.tar` from s3.opensky-network.org/data-samples (OpenSky's public samples, no account), 3,860,377,600 bytes; each = the bucket's listing in size and ETag (MD5, or for hours 14–17 the multipart ETag of 42 parts of 5 MiB) | `tools/fetch-opensky.py`, 2026-11-02 |
 | OpenSky rows and points | `rows=61296085 imported=56869562 skipped_zero=0 skipped_out_of_range=0 skipped_malformed=4426523`: the malformed rows are exactly the 4,426,523 with no position (empty `lat` and `lon`) | `awk` over every hour (`row_counts.awk`, LON=4 LAT=3 SKIP=1; `data/raw/opensky/awk-hours.txt`) · `awk -F,` count of empty positions |
+| GBIF occurrences of 2024 with coordinates | Download `0023351-261023074918325` (DOI 10.15468/dl.rb4bz5, 4,617 datasets), made 2026-11-02 with the developer's login: a 34,921,376,760-byte zip (= GBIF's size, every CRC checked) holding one 161,182,389,797-byte tab-separated CSV; latitude column 22, longitude 23 | `tools/fetch-gbif.py` · GBIF's `download.json` |
+| GBIF rows and points | `rows=287451215 imported=287450825 skipped_zero=381 skipped_out_of_range=4 skipped_malformed=5`: rows = GBIF's own `totalRecords` (287,451,215) | `awk` over the whole file (`row_counts.awk`, LON=23 LAT=22 SKIP=1 DELIM=tab; `data/raw/gbif/awk-counts.txt`) |
 | NYC taxis 2009–2010 (TLC) | 24 Parquet files, 11 GB · 339,897,217 trips → 679,794,434 pickup and dropoff points: 668,475,278 on the map, 11,315,804 at (0,0), 3,242 off the map, 110 without a place | DuckDB, 2026-11-01 |
 | Porto trips (rows) and points | 1,710,670 trips (5,901 with no point), 83,409,386 points, all on the map, none at (0,0), no malformed row; longest line 84,640 bytes | Python's `csv` and `json` |
 
