@@ -5,6 +5,7 @@
 
 #include <arpa/inet.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <inttypes.h>
 #include <signal.h>
 #include <stdio.h>
@@ -40,8 +41,9 @@ static void print_usage(void)
           "commands:\n"
           "  help                     show this message\n"
           "  where LON LAT --zoom Z   print the map tile zoom/x/y for a place\n"
-          "  import --lon-col C --lat-col C [--delim D] [--skip N] -o OUT.pts FILE...\n"
-          "                           read text rows into a .pts file and print what was kept and skipped\n"
+          "  import (--lon-col C --lat-col C | --polyline C | --gpx) [--delim D] [--skip N] -o OUT.pts FILE...\n"
+          "                           read CSV/TSV rows, polylines or GPX track points into a .pts file\n"
+          "                           and print what was kept and skipped\n"
           "  build [--mem SIZE] [--tmp DIR] -o OUT.gpt IN.pts...\n"
           "                           sort the points into a .gpt tile file\n"
           "  info FILE.gpt            print the point count, file size, bounds and start view\n"
@@ -507,13 +509,15 @@ static int check_build_files(char **files, int count, const char *out_path, uint
         }
         if (st.st_size % 8 != 0)
             return file_error("build", files[f], "not a .pts file (its size is not a multiple of 8 bytes)");
-        FILE *in = fopen(files[f], "rb");
+        /* pread, not fread: /dev/stdin redirected from a file shares its offset (macOS), so a read would
+         * move the start of the real read below by 16 bytes. */
+        int fd = open(files[f], O_RDONLY);
         unsigned char head[16];
-        if (in == NULL)
+        if (fd < 0)
             return file_error("build", files[f], strerror(errno));
-        size_t got = fread(head, 1, sizeof head, in);
-        fclose(in);
-        if (got == sizeof head && build_is_gpt(head))
+        ssize_t got = pread(fd, head, sizeof head, 0);
+        close(fd);
+        if (got == (ssize_t)sizeof head && build_is_gpt(head))
             return build_failed(BUILD_GPT_INPUT, 0, files[f], NULL, NULL);
         total += (uint64_t)st.st_size;
     }

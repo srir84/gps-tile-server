@@ -410,8 +410,8 @@ static int add_row(uint32_t x, uint32_t y, void *context)
         return 1;
     char *row = c->data + c->used;
     size_t room = sizeof c->data - c->used;
-    double west = b->west == 180.0 ? -180.0 : b->west, east = b->east == 180.0 ? 180.0 : b->east;
-    int n = put_degrees(row, room, geo_lon(x + 0.5), west, east, x, geo_world_x);
+    double west = b->west == 180.0 ? -180.0 : b->west;
+    int n = put_degrees(row, room, geo_lon(x + 0.5), west, b->east, x, geo_world_x);
     row[n] = ',';
     n += 1 + put_degrees(row + n + 1, room - (size_t)n - 1, geo_lat(y + 0.5), b->south, b->north, y, geo_world_y);
     row[n] = '\n';

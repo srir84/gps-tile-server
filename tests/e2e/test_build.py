@@ -56,6 +56,25 @@ def test_random_codes_build_to_the_oracle_file_with_any_mem():
         assert sorted(os.listdir(tmp)) == ["a.pts", "b.pts", "big.gpt", "runs", "small.gpt"], os.listdir(tmp)
 
 
+def test_stdin_from_a_file_or_a_pipe_keeps_every_point():
+    """catches: the check for a .gpt given as input reading the first 16 bytes of /dev/stdin, which on macOS shares its offset with a redirected file, so 2 points are silently lost (Fable audit F1)"""
+    codes = random_codes(1000)
+    expected = gpt.gpt_bytes(codes)
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp = pathlib.Path(tmp)
+        (tmp / "a.pts").write_bytes(gpt.to_le_bytes(codes))
+        for how in ("file", "pipe"):
+            out = tmp / f"{how}.gpt"
+            command = [os.environ["GPSTILES_BIN"], "build", "-o", str(out), "/dev/stdin"]
+            with open(tmp / "a.pts", "rb") as source:
+                if how == "file":
+                    result = subprocess.run(command, stdin=source, capture_output=True, text=True, timeout=60)
+                else:
+                    result = subprocess.run(command, input=source.read(), capture_output=True, timeout=60)
+            assert result.returncode == 0 and "points=1000 " in str(result.stdout), (how, result)
+            assert out.read_bytes() == expected, f"{how}: points differ from a plain sort"
+
+
 def test_tdrive_small_imports_and_builds_to_the_oracle_file():
     """catches: wrong bounds, densest pixel or view box on real-style clustered points"""
     with tempfile.TemporaryDirectory() as tmp:

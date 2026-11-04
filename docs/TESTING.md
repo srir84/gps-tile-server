@@ -54,11 +54,11 @@ flowchart TB
 
 | Level | What it is | Where | Runs in | Time budget |
 |---|---|---|---|---|
-| 1. Unit | One function, known input → known answer | `tests/unit/` (C) | `make check` | < 1 s |
-| 2. Random input | Thousands of random inputs from a fixed seed, each checked against a rule that must always hold | `tests/unit/` (C) | `make check` | < 5 s |
-| 3. Bad input | Broken rows, broken files, broken requests → clean error, never a crash | `tests/unit/` + `tests/e2e/` | `make check` | < 5 s |
-| 4. End-to-end | Start the real server on a small test file, send real HTTP requests | `tests/e2e/` (Python) | `make check` | < 5 s |
-| 5. Memory safety | Levels 1–4 again with AddressSanitizer + UndefinedBehaviorSanitizer | same | `make sanitize` | < 30 s |
+| 1. Unit | One function, known input → known answer | `tests/unit/` (C) | `make check` | seconds (levels 1–2) |
+| 2. Random input | Thousands of random inputs from a fixed seed, each checked against a rule that must always hold | `tests/unit/` (C) | `make check` | seconds (with level 1) |
+| 3. Bad input | Broken rows, broken files, broken requests → clean error, never a crash | `tests/unit/` + `tests/e2e/` | `make check` | about 2 min with level 4 (most of it headless Chrome) |
+| 4. End-to-end | Start the real server on a small test file, send real HTTP requests | `tests/e2e/` (Python) | `make check` | (with level 3) |
+| 5. Memory safety | Levels 1–4 again with AddressSanitizer + UndefinedBehaviorSanitizer | same | `make sanitize` | about 2.5 min |
 | 6. Real data | Each downloaded dataset (9: T-Drive … GBIF) against `awk`, Python or DuckDB | `tests/data/` (Python + awk) | `make check-data` | minutes |
 
 Levels 1–5 use only the small files in `tests/fixtures/`, so they never need `data/`. Level 6 needs `data/`. If it is missing, `make check-data` prints `SKIPPED: <reason>` and exits 0. A skip is not a pass: the step file lists it under "Not verified".
@@ -78,7 +78,7 @@ What `make check` prints (short, so it can be pasted into a step file):
 
 ```text
 unit        39 passed   0 failed
-e2e        155 passed   0 failed
+e2e        156 passed   0 failed
 ALL PASSED (build)
 ```
 
@@ -262,7 +262,7 @@ At least 2 deliberate breaks per step from step 1 on. Steps 0a and 0b use a setu
 | Real-data checks | Separate `make check-data` | Inside `make check`: needs 447 MB of data and takes minutes |
 | Fuzzing tool | Not used. Level 3 random bad input, plus reviewers' fuzzing against the Python rules (step 12: 3,000 files) | libFuzzer / AFL: extra setup |
 | Code coverage | Not measured | `llvm-cov` report: not set up |
-| CI | Local pre-commit hook and `make verify` | GitHub Actions: not set up (the real-data checks need data that isn't in the repo) |
+| CI | GitHub Actions on Linux (`make check` + `make sanitize`, gcc and clang, every push) · the local pre-commit hook and `make verify` on macOS | The real-data checks run only on the developer's Mac (the data isn't in the repo) |
 | Closed loop | Codex reviewer · Stop hook · local service + release (decision 2026-10-28); from step 3a also a separate Claude skeptic agent, in its own copy | Public server: out of scope (DESIGN §14) |
 
 ---

@@ -8,8 +8,8 @@ waits for the same download. The zip is written under a temporary name first and
 holds exactly one .csv and that file's CRC checks out (a kept zip is checked again); GBIF's description of the download
 (its DOI, which must be cited, and totalRecords, the rows it holds) is kept as OUT_DIR/download.json.
 The login comes from a netrc file (machine api.gbif.org, login = the GBIF username, not the email), by default
-~/.config/gpstiles/gbif.netrc, readable by its owner only. It is never printed, and only sent over https (or to this
-Mac), never on a redirect.
+~/.config/gpstiles/gbif.netrc, readable by its owner only. The password is never printed (the user name can be, in an
+error about the download list's URL), and is only sent over https (or to this Mac), never on a redirect.
 Usage: tools/fetch-gbif.py OUT_DIR YEAR [--url URL] [--netrc FILE] [--poll SECONDS]
 Built-in modules only."""
 import argparse

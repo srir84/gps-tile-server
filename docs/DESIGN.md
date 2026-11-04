@@ -369,7 +369,7 @@ flowchart TD
 
 | Rule | Value |
 |---|---|
-| Bounds | `bbox=w,s,e,n` turned into world units with the point encoding (§9.4): `x0 = x(w)`, `x1 = x(e)`, `y0 = y(n)`, `y1 = y(s)` |
+| Bounds | `bbox=w,s,e,n` turned into world units with the point encoding (§9.4): `x0 = x(w)`, `x1 = x(e)`, `y0 = y(n)`, `y1 = y(s)`, except that an edge at longitude 180 is the world's east edge, x = 2³² − 1 (a point at 180 is stored as x = 0, §9.4) |
 | Inside | A stored point (x, y) is inside if `x0 ≤ x ≤ x1` and `y0 ≤ y ≤ y1`. Edges included |
 | Shared edges | A point exactly on the edge two boxes share counts in both |
 | Rejected (400) | `w > e` (no boxes across the ±180 line), `s > n`, values outside the valid input range, NaN |

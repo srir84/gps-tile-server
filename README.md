@@ -54,7 +54,7 @@ One sort serves every zoom: the world is the whole file, each zoom-1 quarter a s
 | Counting dense squares by quarters | Zoomed-out tiles don't walk every point | Porto's world tile: 164 ms point by point → 0.6 ms |
 | Streaming import | Archives read through pipes, never unpacked | 848,059 GPX files in a 22 GB `tar.xz`: 27 min |
 | Exact counts | Every point is counted, none sampled; positions are stored to about 1 cm | box counts match independent tools |
-| Small and strict | C11, zlib only, `-Wall -Wextra -Wconversion -Werror`, ASan + UBSan | 3,100 lines of C, 300 KB binary |
+| Small and strict | C11, zlib only, `-Wall -Wextra -Wconversion -Werror`, ASan + UBSan | 3,500 lines of C, 300 KB binary |
 
 ### Compared with tools you may know
 
