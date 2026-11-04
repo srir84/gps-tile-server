@@ -17,7 +17,7 @@ Use only these to build, test, review and deploy. Build and test commands exist 
 | Command | Does |
 |---|---|
 | `make` | Build `build/gpstiles` |
-| `make check` | Build + unit, random-input, bad-input and end-to-end tests (seconds, no `data/` needed) |
+| `make check` | Build + unit, random-input, bad-input and end-to-end tests (about 2 minutes, no `data/` needed) |
 | `make sanitize` | Same tests under AddressSanitizer + UndefinedBehaviorSanitizer |
 | `make check-data` | Real-data checks (T-Drive, GeoLife, …) against `awk` / Python answers (minutes, needs `data/`; each dataset SKIPPED without its files) |
 | `make verify` (0b) | check + sanitize + check-data (if `data/` exists) + every step's `tests/validate/step-N.sh` |
@@ -81,7 +81,7 @@ Picking up mid-step: trust the files and `git status`, not memory. Re-run `make 
 ## Docs
 - Keep docs minimal: this file, `docs/DESIGN.md`, `docs/TESTING.md`, `docs/steps/`. Create a new doc only if the developer asks.
 - Prefer diagrams and tables to prose.
-- Any `.md` with a ```mermaid diagram must be baked before you hand it over: `python3 ~/.agents/templates/bake_mermaid.py <file.md>`.
+- Any `.md` with a ```mermaid diagram must be baked (rendered to a PNG, its source kept in a `<details>` block) before you hand it over, with the developer's `bake_mermaid.py`.
 - If the design needs to change, propose it in the step file under "Decisions". Do not edit DESIGN decisions silently.
 
 ## Never

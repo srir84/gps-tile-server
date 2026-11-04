@@ -5,15 +5,15 @@
 **Billions of GPS points → a zoomable heat map in your browser. One small C program, one file per dataset, on a laptop.**
 
 ![2.7 billion GPS points from OpenStreetMap's public traces, the whole world at zoom 2: Europe brightest, every continent's roads, flight paths across the oceans](docs/images/readme-world-gps.jpg)
-<sub>OpenStreetMap's public GPS traces, 2013: **2,675,901,374 points** in one 21 GB file. Slowest zoom's p99: 52 ms (warm cache, drawing only, no HTTP).</sub>
+<sub>OpenStreetMap's public GPS traces, 2013: **2,675,901,374 points** in one 21 GB file. 99% of tiles drawn in under 52 ms, even at the slowest zoom (warm cache on a 128 GB MacBook, drawing only, no HTTP).</sub>
 
 ## In 30 seconds
 
 - **What:** give it places (longitude, latitude); get an interactive heat map, point counts for any box, and CSV export.
 - **What it's not:** a database, a GIS or a cloud service. One 300 KB program: C11 + zlib.
 - **Scale:** 10 real datasets, 4.5 million to **2.7 billion** points. 2.7 billion points sort in 4 min 43 s using 1 GiB of memory.
-- **The trick:** each point becomes a 64-bit [Z-order code](#the-key-idea-z-order), sorted once. Every map tile, at every zoom, is then one contiguous slice of the file, found by two binary searches. No tiles are pre-rendered.
-- **Start reading the code at** [`count_cell()` in `src/render.c`](src/render.c): about 30 lines that turned an 83-million-point world tile from 164 ms into 0.6 ms.
+- **The trick:** each point becomes a 64-bit [Z-order (Morton) code](#the-key-idea-z-order), sorted once. Every map tile, at every zoom, is then one contiguous slice of the file, found by two binary searches. No tiles are pre-rendered.
+- **Start reading the code at** [`count_cell()` in `src/render.c`](src/render.c#L38): about 30 lines that turned an 83-million-point world tile from 164 ms into 0.6 ms.
 - **Data included?** No. You [download datasets](#datasets-none-included) yourself.
 
 <table>
@@ -23,7 +23,7 @@
 </tr>
 <tr>
 <td width="50%"><img src="docs/images/readme-earthquakes.jpg" alt="4.8 million earthquakes since 1900: the Pacific Ring of Fire"><br><sub><b>Earthquakes:</b> 4.8 million since 1900 (USGS)</sub></td>
-<td width="50%"><img src="docs/images/readme-nyc-street.jpg" alt="New York taxi pickups and dropoffs at street level around Times Square"><br><sub><b>Taxis:</b> 668 million NYC pickups and dropoffs, street level</sub></td>
+<td width="50%"><img src="docs/images/readme-nyc.jpg" alt="New York taxi pickups and dropoffs at zoom 12: Manhattan's street grid, Central Park dark, LaGuardia and JFK lit up"><br><sub><b>Taxis:</b> 668 million NYC pickups and dropoffs, 2009–2010</sub></td>
 </tr>
 </table>
 
@@ -44,14 +44,14 @@ Number the map's squares in a "Z" pattern. In binary, a square's number is its p
 
 One sort serves every zoom: the world is the whole file, each zoom-1 quarter a slice, and so on down to street level.
 
-## Why it's technically interesting
+## Design choices, measured
 
 | Idea | What it buys | Measured |
 |---|---|---|
-| One sorted file per dataset, memory-mapped | No database, nothing to load; the OS cache does the caching | ready in 5 ms with 31 GB of files open |
+| One sorted file per dataset, memory-mapped | No database, nothing to load; the OS cache does the caching | listening in under 4 ms with every dataset open (11 files with the T-Drive sample, 40 GB) |
 | Z-order codes | Any tile at any zoom = one slice, two binary searches | no per-zoom index, no tile cache |
 | External merge sort | Data far bigger than memory (up to 256 runs: raise `--mem` beyond that) | 2.7 B points (21 GB) sorted with 1 GiB: 20 runs, 4 min 43 s, peak 1.08 GB |
-| Counting dense squares by quarters | Zoomed-out tiles don't walk every point | Porto's world tile: 164 ms point by point → 0.6 ms |
+| Counting dense squares by quarters (an implicit quadtree over the sorted file) | Zoomed-out tiles don't walk every point | Porto's world tile: 164 ms point by point → 0.6 ms |
 | Streaming import | Archives read through pipes, never unpacked | 848,059 GPX files in a 22 GB `tar.xz`: 27 min |
 | Exact counts | Every point is counted, none sampled; positions are stored to about 1 cm | box counts match independent tools |
 | Small and strict | C11, zlib only, `-Wall -Wextra -Wconversion -Werror`, ASan + UBSan | 3,500 lines of C, 300 KB binary |
@@ -68,11 +68,11 @@ One sort serves every zoom: the world is the whole file, each zoom-1 quarter a s
 
 Apple-silicon MacBook (16 cores, 128 GB), file in the disk cache. Worst p99: the slowest zoom's 99th-percentile time to draw a tile (`gpstiles bench`: 100 tiles a zoom, drawing only, no HTTP).
 
-| Dataset | Points | `.gpt` file | Build (1 GiB buffer) | Worst p99, any zoom |
+| Dataset | Points | `.gpt` file | Build: sorted runs, time (1 GiB buffer) | Worst p99, any zoom |
 |---|---:|---:|---|---:|
-| Porto taxis | 83 M | 0.7 GB | 1 run | 19 ms |
+| Porto taxis | 83 M | 0.7 GB | 1 run, 8 s | 19 ms |
 | OpenSky, one day | 57 M | 0.5 GB | 1 run, 38 s with import | 15 ms |
-| GBIF sightings, 2024 | 287 M | 2.3 GB | 3 runs, 14 min with import (`unzip`) | 22 ms |
+| GBIF sightings, 2024 | 287 M | 2.3 GB | 3 runs, 866 s with import (161 GB `unzip`) | 22 ms |
 | NYC taxis 2009–2010 | 668 M | 5.3 GB | 5 runs, 97 s | 50 ms |
 | NOAA AIS ships | 1.2 B | 9.7 GB | 10 runs, 149 s | 20 ms |
 | OpenStreetMap traces | 2.7 B | 21.4 GB | 20 runs, 283 s | 52 ms |
@@ -81,7 +81,7 @@ Cold (file not yet in the disk cache): up to about 0.5 s a tile until the parts 
 
 ## Quick start
 
-Needs a Mac with the Xcode command line tools (`xcode-select --install`: `cc`, `make`, `zlib`, Python 3). Google Chrome, if installed, runs a few browser tests too.
+Needs macOS or Linux with `cc`, `make`, zlib and Python 3 (macOS: `xcode-select --install`; Debian/Ubuntu: `apt install build-essential zlib1g-dev`). Google Chrome, if installed, runs a few browser tests too (on Linux: `export GPSTILES_CHROME=/usr/bin/google-chrome`).
 
 ### 1. Build and test (no data, 2 minutes)
 
@@ -229,11 +229,7 @@ It listens on 127.0.0.1:8080. Another port: `make undeploy`, then `GPSTILES_PORT
 
 ## How it was built
 
-Written with AI coding agents (Claude as builder, Codex as reviewer) in 22 small, reviewed steps, from 10 million Beijing taxi points to 2.7 billion worldwide. Every step was gated by tests:
-
-- **Independent answers:** counts are checked against a separate tool, never against gpstiles itself: `awk` over the raw files, DuckDB, Python's XML parser, or the publisher's own count (USGS, OpenStreetMap, GBIF).
-- **Tests that are proven:** each step plants bugs on purpose in a throwaway copy (at least two per step) and shows a test catching each one.
-- **Reviews:** every step reviewed by Codex; from step 3a also by a second, independent Claude agent.
+Written with AI coding agents (Claude building, Codex and a second Claude reviewing) in 22 steps, from 10 million Beijing taxi points to 2.7 billion worldwide; the developer chose the datasets and the scope, and approved the design and every step. Every count is checked against a separate tool, never against gpstiles itself (`awk`, DuckDB, Python, or the publisher's own totals), and each step planted bugs on purpose to show its tests catch them.
 
 Step reports, with real output, planted bugs and review findings: [`docs/steps/`](docs/steps/README.md). Design, with pictures: [`docs/DESIGN.md`](docs/DESIGN.md). Test strategy: [`docs/TESTING.md`](docs/TESTING.md).
 
@@ -249,7 +245,9 @@ AGENTS.md   instructions for the coding agents (CLAUDE.md and .claude/ point Cla
 ## Known limits
 
 - **Scripts need macOS.** The program builds and passes `make check` and `make sanitize` on Linux too (gcc and clang, [CI](.github/workflows/linux.yml)); the deploy, data and validation scripts use macOS tools.
+- **Speed assumes the file fits in memory.** The timings above have the file in the OS cache of a 128 GB Mac. Not measured on a machine with less memory than the file: tiles then read their part from disk (cold: up to about 0.5 s a tile).
 - **No time dimension.** Points are places only (adding time would change the file format).
+- **Only (0, 0) is skipped.** Points at exactly latitude 0 or longitude 0 are kept, so a source's junk zeros show as faint lines along the equator and the Greenwich meridian (visible in the world image).
 - **Local by default.** It listens on 127.0.0.1, read-only, no logins: not built for the open internet.
 - **IPv4 only, no keep-alive.** One IPv4 address; every answer closes its connection (`Connection: close`).
 - **The `.gpt` file is trusted.** Opening one checks its header, version, size and stats, not that the points are sorted: a foreign or hand-edited file can give wrong counts (never a read outside the file).
